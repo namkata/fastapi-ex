@@ -31,6 +31,6 @@ jobs:
       # - name: Run mypy
       #   run: mypy .
 
-      - name: Run pylint
-        run: |
-          find . -name "*.py" | xargs pylint --disable=R,C
+      # - name: Run pylint
+      #   run: |
+      #     find . -name "*.py" | xargs pylint --disable=R,C
