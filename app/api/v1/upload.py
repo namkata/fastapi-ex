@@ -150,6 +150,8 @@ async def upload_to_seaweedfs(
     # Tạo bản ghi Image
     db_image = create_image_record(db, file, current_user.id, StorageType.SEAWEEDFS, description)
     
+    file.file.seek(0)
+
     # Upload lên SeaweedFS
     db_image = upload_image_to_seaweedfs(db, db_image.id, file)
     if not db_image:
