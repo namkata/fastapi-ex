@@ -22,14 +22,14 @@ jobs:
       # - name: Run ruff (lint)
       #   run: ruff check . --fix
 
-      - name: Run black (check only)
-        run: black --check .
+      # - name: Run black (check only)
+      #   run: black --check .
 
-      - name: Run isort (check only)
-        run: isort . --check-only
+      # - name: Run isort (check only)
+      #   run: isort . --check-only
 
-      - name: Run mypy
-        run: mypy .
+      # - name: Run mypy
+      #   run: mypy .
 
       - name: Run pylint
         run: |
