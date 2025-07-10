@@ -412,8 +412,11 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
             ):
                 raise ValueError("Invalid size values")
 
-            width = float(width_raw)
-            height = float(height_raw)
+            # Convert to integer dimensions
+            width = int(float(width_raw))
+            height = int(float(height_raw))
+
+            # Now call create_thumbnail with ints
             result_path = image_processor.create_thumbnail(
                 str(image.file_path), (width, height)
             )
