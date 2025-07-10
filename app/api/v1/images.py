@@ -6,8 +6,12 @@ from sqlalchemy.orm import Session
 from app.db.models import User
 from app.db.session import get_db
 from app.schemas.image import Image as ImageSchema
-from app.schemas.image import (ImageList, ImageUpdate, ProcessingTask,
-                               ProcessingTaskCreate)
+from app.schemas.image import (
+    ImageList,
+    ImageUpdate,
+    ProcessingTask,
+    ProcessingTaskCreate,
+)
 from app.schemas.image import Thumbnail as ThumbnailSchema
 from app.services.auth import get_current_active_user
 from app.services.file import delete_image, get_image, get_images, update_image
