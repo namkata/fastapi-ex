@@ -45,6 +45,9 @@ app.add_middleware(LoggingMiddleware)
 # Include API routers
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Create the 'static' directory if it doesn't exist
+os.makedirs("static", exist_ok=True)
+
 # Mount static directory to serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 

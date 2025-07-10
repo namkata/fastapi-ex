@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     SEAWEEDFS_MASTER_URL: str = os.getenv(
         "SEAWEEDFS_MASTER_URL", "http://localhost:9333"
     )
+    SEAWEEDFS_VOLUME_URL: str = os.getenv(
+        "SEAWEEDFS_VOLUME_URL", "http://localhost:8080"
+    )
 
     # S3 settings (LocalStack)
     AWS_ACCESS_KEY_ID: str = os.getenv("AWS_ACCESS_KEY_ID", "test")

@@ -15,6 +15,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi
       - SEAWEEDFS_MASTER_URL=http://seaweedfs-master:9333
+      - SEAWEEDFS_VOLUME_URL=http://seaweedfs-volume:8080
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_REGION=us-east-1

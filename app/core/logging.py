@@ -1,12 +1,12 @@
 import os
 import sys
 
-from loguru import Logger, logger
+from loguru import logger
 
 from app.core.config import settings
 
 
-def setup_logging() -> Logger:
+def setup_logging() -> None:
     """
     Thiết lập cấu hình logging cho ứng dụng sử dụng loguru
     """
@@ -54,8 +54,6 @@ def setup_logging() -> Logger:
         compression="zip",
         filter=lambda record: "api" in record["extra"],
     )
-
-    return logger
 
 
 # Tạo logger instance để sử dụng trong ứng dụng

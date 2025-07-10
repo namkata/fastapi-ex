@@ -65,9 +65,54 @@ class SeaweedFSService:
             app_logger.warning("[SeaweedFS] Service unavailable.")
             return None
         try:
-            return self.seaweed.get_file_url(fid)
+            # Parse the FID to extract volume ID and file key
+            # FID format is typically: volume_id,file_key
+            if ',' not in fid:
+                app_logger.error(f"[SeaweedFS] Invalid FID format: {fid}")
+                return None
+            
+            volume_id, file_key = fid.split(',', 1)
+            
+            # Construct URL using the configured volume server URL instead of volume name
+            volume_url = settings.SEAWEEDFS_VOLUME_URL.rstrip('/')
+            file_url = f"{volume_url}/{volume_id}/{file_key}"
+            
+            app_logger.info(f"[SeaweedFS] Generated URL: {file_url}")
+            return file_url
         except Exception as e:
             app_logger.error(f"[SeaweedFS] Get URL error: {e}")
+            return None
+
+    def get_file_url_with_custom_volume_server(self, fid: str, volume_server_url: str) -> Optional[str]:
+        """
+        Get file URL using a custom volume server URL (IP or domain)
+        
+        Args:
+            fid: File ID in format volume_id,file_key
+            volume_server_url: Custom volume server URL (e.g., http://192.168.1.100:8080)
+        
+        Returns:
+            Complete file URL or None if error
+        """
+        if not self.available:
+            app_logger.warning("[SeaweedFS] Service unavailable.")
+            return None
+        try:
+            # Parse the FID to extract volume ID and file key
+            if ',' not in fid:
+                app_logger.error(f"[SeaweedFS] Invalid FID format: {fid}")
+                return None
+            
+            volume_id, file_key = fid.split(',', 1)
+            
+            # Construct URL using the provided volume server URL
+            volume_url = volume_server_url.rstrip('/')
+            file_url = f"{volume_url}/{volume_id}/{file_key}"
+            
+            app_logger.info(f"[SeaweedFS] Generated custom URL: {file_url}")
+            return file_url
+        except Exception as e:
+            app_logger.error(f"[SeaweedFS] Get custom URL error: {e}")
             return None
 
     def delete_file(self, fid: str) -> bool:
