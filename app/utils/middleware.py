@@ -1,10 +1,11 @@
-from typing import Callable, Awaitable
+import time
+from typing import Awaitable, Callable
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
 from app.core.logging import app_logger
-import time
 
 
 class LoggingMiddleware(BaseHTTPMiddleware):

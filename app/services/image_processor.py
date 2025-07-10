@@ -1,18 +1,18 @@
 import os
-from typing import Optional, List, Tuple
-from sqlalchemy.orm import Session
-from PIL import Image as PILImage
-
 # Tạm thời bỏ qua thư viện Wand do vấn đề với MagickWand
 # from wand.image import Image as WandImage
 from datetime import datetime
+from typing import List, Optional, Tuple
+
+from PIL import Image as PILImage
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import app_logger
-from app.db.models import Image, Thumbnail, ProcessingTask
+from app.db.models import Image, ProcessingTask, Thumbnail
 from app.schemas.image import ProcessStatus
-from app.services.seaweedfs import seaweedfs_service
 from app.services.s3 import s3_service
+from app.services.seaweedfs import seaweedfs_service
 
 
 class ImageProcessor:

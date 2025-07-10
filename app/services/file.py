@@ -1,17 +1,18 @@
-import os
-import uuid
-import shutil
-from typing import List, Optional, Dict, Any, Tuple
-from datetime import datetime
-from fastapi import UploadFile
-from sqlalchemy.orm import Session
-from PIL import Image as PILImage
 import io
+import os
+import shutil
+import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
+
+from fastapi import UploadFile
+from PIL import Image as PILImage
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import app_logger
 from app.db.models import Image, ProcessingTask, UploadSession
-from app.schemas.image import StorageType, ProcessStatus
+from app.schemas.image import ProcessStatus, StorageType
 
 
 def validate_image_file(file: UploadFile) -> bool:

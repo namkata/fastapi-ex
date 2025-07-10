@@ -1,11 +1,12 @@
+import mimetypes
 import os
 import uuid
-import mimetypes
+from typing import BinaryIO, Optional
 from urllib.parse import quote_plus
-from typing import Optional, BinaryIO
-from fastapi import UploadFile
+
 import boto3
 from botocore.exceptions import ClientError
+from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.config import settings

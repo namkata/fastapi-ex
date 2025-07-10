@@ -1,23 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.db.session import get_db
-from app.db.models import User
-from app.schemas.image import (
-    ImageList,
-    ImageUpdate,
-    ProcessingTaskCreate,
-    ProcessingTask,
-)
-from app.schemas.image import Image as ImageSchema
-from app.schemas.image import Thumbnail as ThumbnailSchema
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
 
+from app.db.models import User
+from app.db.session import get_db
+from app.schemas.image import Image as ImageSchema
+from app.schemas.image import (ImageList, ImageUpdate, ProcessingTask,
+                               ProcessingTaskCreate)
+from app.schemas.image import Thumbnail as ThumbnailSchema
 from app.services.auth import get_current_active_user
-from app.services.file import get_image, get_images, update_image, delete_image
-from app.services.image_processor import process_image, create_thumbnails
-from app.services.seaweedfs import delete_image_from_seaweedfs
+from app.services.file import delete_image, get_image, get_images, update_image
+from app.services.image_processor import create_thumbnails, process_image
 from app.services.s3 import delete_image_from_s3
+from app.services.seaweedfs import delete_image_from_seaweedfs
 
 router = APIRouter()
 

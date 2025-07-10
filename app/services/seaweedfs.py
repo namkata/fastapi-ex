@@ -1,5 +1,6 @@
 import os
-from typing import Optional, BinaryIO
+from typing import BinaryIO, Optional
+
 from fastapi import UploadFile
 from pyseaweed import SeaweedFS
 from sqlalchemy.orm import Session

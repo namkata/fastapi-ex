@@ -1,31 +1,21 @@
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    status,
-    UploadFile,
-    File,
-    Form,
-    BackgroundTasks,
-)
-from sqlalchemy.orm import Session
 from typing import List, Optional
 
+from fastapi import (APIRouter, BackgroundTasks, Depends, File, Form,
+                     HTTPException, UploadFile, status)
+from sqlalchemy.orm import Session
+
 from app.core.logging import app_logger
-from app.db.session import get_db
 from app.db.models import User
-from app.schemas.image import ImageUploadResponse, BatchUploadResponse, StorageType
+from app.db.session import get_db
+from app.schemas.image import BatchUploadResponse
 from app.schemas.image import Image as ImageSchema
+from app.schemas.image import ImageUploadResponse, StorageType
 from app.services.auth import get_current_active_user
-from app.services.file import (
-    validate_image_file,
-    create_image_record,
-    create_upload_session,
-    update_upload_session,
-)
-from app.services.seaweedfs import upload_image_to_seaweedfs
-from app.services.s3 import upload_image_to_s3
+from app.services.file import (create_image_record, create_upload_session,
+                               update_upload_session, validate_image_file)
 from app.services.image_processor import create_thumbnails
+from app.services.s3 import upload_image_to_s3
+from app.services.seaweedfs import upload_image_to_seaweedfs
 
 # Create router
 router = APIRouter()

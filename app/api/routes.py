@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, users, images, upload
+from app.api.v1 import auth, images, upload, users
 
 # Tạo API router
 api_router = APIRouter()

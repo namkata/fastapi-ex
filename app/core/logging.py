@@ -1,6 +1,8 @@
 import os
 import sys
-from loguru import logger, Logger
+
+from loguru import Logger, logger
+
 from app.core.config import settings
 
 

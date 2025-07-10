@@ -1,10 +1,11 @@
 from typing import List, Optional
+
 from sqlalchemy.orm import Session
 
+from app.core.logging import app_logger
 from app.db.models import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.services.auth import get_password_hash
-from app.core.logging import app_logger
 
 
 def get_user(db: Session, user_id: int) -> Optional[User]:
