@@ -14,7 +14,9 @@ router = APIRouter()
 
 
 @router.post("/", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
-async def create_new_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserSchema:
+async def create_new_user(
+    user_in: UserCreate, db: Session = Depends(get_db)
+) -> UserSchema:
     """
     Create a new user.
     """
@@ -30,7 +32,9 @@ async def create_new_user(user_in: UserCreate, db: Session = Depends(get_db)) ->
 
 
 @router.get("/me", response_model=UserSchema)
-async def read_users_me(current_user: User = Depends(get_current_active_user)) -> UserSchema:
+async def read_users_me(
+    current_user: User = Depends(get_current_active_user),
+) -> UserSchema:
     """
     Get the currently authenticated user's profile.
     """
@@ -39,9 +43,9 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)) -
 
 @router.put("/me", response_model=UserSchema)
 async def update_user_me(
-        user_in: UserUpdate,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    user_in: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> UserSchema:
     """
     Update the currently authenticated user's information.
@@ -57,10 +61,10 @@ async def update_user_me(
 
 @router.get("/", response_model=List[UserSchema])
 async def read_users(
-        skip: int = 0,
-        limit: int = 100,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_admin_user),
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
 ) -> List[UserSchema]:
     """
     Get a list of all users (admin only).
@@ -71,9 +75,9 @@ async def read_users(
 
 @router.get("/{user_id}", response_model=UserSchema)
 async def read_user(
-        user_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_active_user),
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
 ) -> UserSchema:
     """
     Get a user by ID. Admins can access any user; regular users can only access themselves.
@@ -95,10 +99,10 @@ async def read_user(
 
 @router.put("/{user_id}", response_model=UserSchema)
 async def update_user_by_id(
-        user_id: int,
-        user_in: UserUpdate,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_admin_user),
+    user_id: int,
+    user_in: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
 ) -> UserSchema:
     """
     Update a user by ID (admin only).
@@ -114,9 +118,9 @@ async def update_user_by_id(
 
 @router.delete("/{user_id}", response_model=UserSchema)
 async def delete_user_by_id(
-        user_id: int,
-        db: Session = Depends(get_db),
-        current_user: User = Depends(get_current_admin_user),
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_admin_user),
 ) -> UserSchema:
     """
     Delete a user by ID (admin only). Users cannot delete themselves.

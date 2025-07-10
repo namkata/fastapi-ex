@@ -5,8 +5,10 @@ from typing import List, Optional
 from app.db.session import get_db
 from app.db.models import User
 from app.schemas.image import (
-    ImageList, ImageUpdate, ProcessingTaskCreate,
-    ProcessingTask
+    ImageList,
+    ImageUpdate,
+    ProcessingTaskCreate,
+    ProcessingTask,
 )
 from app.schemas.image import Image as ImageSchema
 from app.schemas.image import Thumbnail as ThumbnailSchema
@@ -33,7 +35,13 @@ async def list_images(
     images, total = get_images(db, skip=skip, limit=limit, user_id=current_user.id)
     pages = (total + limit - 1) // limit if limit > 0 else 1
     page = (skip // limit) + 1 if limit > 0 else 1
-    return ImageList(images=[ImageSchema.from_orm(img) for img in images], total=total, page=page, size=limit, pages=pages)
+    return ImageList(
+        images=[ImageSchema.from_orm(img) for img in images],
+        total=total,
+        page=page,
+        size=limit,
+        pages=pages,
+    )
 
 
 @router.get("/all", response_model=ImageList)
@@ -56,7 +64,13 @@ async def list_all_images(
     images, total = get_images(db, skip=skip, limit=limit, user_id=user_id)
     pages = (total + limit - 1) // limit if limit > 0 else 1
     page = (skip // limit) + 1 if limit > 0 else 1
-    return ImageList(images=[ImageSchema.from_orm(img) for img in images], total=total, page=page, size=limit, pages=pages)
+    return ImageList(
+        images=[ImageSchema.from_orm(img) for img in images],
+        total=total,
+        page=page,
+        size=limit,
+        pages=pages,
+    )
 
 
 @router.get("/{image_id}", response_model=ImageSchema)
@@ -147,6 +161,7 @@ async def create_processing_task(
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     from app.services.file import create_processing_task
+
     task = create_processing_task(db, image_id, task_in.task_type, task_in.params)
 
     # Normally should be done asynchronously

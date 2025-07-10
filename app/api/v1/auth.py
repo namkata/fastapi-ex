@@ -14,7 +14,9 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> Token:
+async def login_for_access_token(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+) -> Token:
     """
     Đăng nhập và lấy access token
     """
@@ -26,13 +28,13 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Tạo access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         subject=user.id, expires_delta=access_token_expires
     )
-    
+
     app_logger.info(f"User logged in: {user.username}")
     return Token(access_token=access_token, token_type="bearer")
 
@@ -50,12 +52,12 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)) ->
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Tạo access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         subject=user.id, expires_delta=access_token_expires
     )
-    
+
     app_logger.info(f"User logged in: {user.username}")
     return Token(access_token=access_token, token_type="bearer")

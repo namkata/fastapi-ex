@@ -48,11 +48,13 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 # Mount static directory to serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
 # Create database tables on startup
 @app.on_event("startup")
 async def startup_event() -> None:
     """Run on application startup: initialize DB tables."""
     create_tables()
+
 
 # Health check endpoint
 @app.get("/health")
@@ -60,6 +62,8 @@ async def health_check() -> dict[str, str]:
     """Health check endpoint to verify app is running."""
     return {"status": "ok"}
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

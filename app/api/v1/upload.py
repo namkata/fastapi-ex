@@ -1,18 +1,27 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    UploadFile,
+    File,
+    Form,
+    BackgroundTasks,
+)
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from app.core.logging import app_logger
 from app.db.session import get_db
 from app.db.models import User
-from app.schemas.image import (
-    ImageUploadResponse, BatchUploadResponse, StorageType
-)
+from app.schemas.image import ImageUploadResponse, BatchUploadResponse, StorageType
 from app.schemas.image import Image as ImageSchema
 from app.services.auth import get_current_active_user
 from app.services.file import (
-    validate_image_file, create_image_record, 
-    create_upload_session, update_upload_session
+    validate_image_file,
+    create_image_record,
+    create_upload_session,
+    update_upload_session,
 )
 from app.services.seaweedfs import upload_image_to_seaweedfs
 from app.services.s3 import upload_image_to_s3
@@ -115,7 +124,9 @@ async def upload_multiple_images(
 
     upload_session = update_upload_session(db, upload_session.id, processed_count)
 
-    app_logger.info(f"Batch upload completed: {processed_count} files, {len(failed_files)} failed")
+    app_logger.info(
+        f"Batch upload completed: {processed_count} files, {len(failed_files)} failed"
+    )
     return BatchUploadResponse(
         upload_session=upload_session,
         uploaded_count=len(uploaded_images),
@@ -143,7 +154,9 @@ async def upload_to_seaweedfs(
             detail="Invalid image file",
         )
 
-    db_image = create_image_record(db, file, current_user.id, StorageType.SEAWEEDFS, description)
+    db_image = create_image_record(
+        db, file, current_user.id, StorageType.SEAWEEDFS, description
+    )
     file.file.seek(0)
 
     uploaded = upload_image_to_seaweedfs(db, db_image.id, file)
@@ -179,7 +192,9 @@ async def upload_to_s3(
             detail="Invalid image file",
         )
 
-    db_image = create_image_record(db, file, current_user.id, StorageType.S3, description)
+    db_image = create_image_record(
+        db, file, current_user.id, StorageType.S3, description
+    )
 
     uploaded = upload_image_to_s3(db, db_image.id, file)
     if not uploaded:

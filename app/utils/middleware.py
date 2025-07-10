@@ -11,7 +11,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     def __init__(self, app: ASGIApp) -> None:
         super().__init__(app)
 
-    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         start_time = time.time()
 
         method = request.method
@@ -35,7 +37,5 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as e:
-            app_logger.bind(api=True).error(
-                f"Error: {method} {url} - Error: {str(e)}"
-            )
+            app_logger.bind(api=True).error(f"Error: {method} {url} - Error: {str(e)}")
             raise

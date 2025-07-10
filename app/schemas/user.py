@@ -34,9 +34,11 @@ class UserInDBBase(UserBase):
 
 class User(UserInDBBase):
     """User schema for response"""
+
     pass
 
 
 class UserInDB(UserInDBBase):
     """User schema with password hash for DB operations"""
+
     hashed_password: str

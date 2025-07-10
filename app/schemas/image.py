@@ -63,21 +63,21 @@ class Image(ImageBase):
     file_type: str
     width: Optional[int] = None
     height: Optional[int] = None
-    
+
     storage_type: StorageType
     storage_path: Optional[str] = None
     seaweedfs_fid: Optional[str] = None
     s3_key: Optional[str] = None
     s3_url: Optional[str] = None
-    
+
     is_processed: bool
     process_status: ProcessStatus
     process_error: Optional[str] = None
-    
+
     owner_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     thumbnails: List[Thumbnail] = []
 
     class Config:

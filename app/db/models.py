@@ -11,14 +11,22 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
-    email: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    username: Mapped[str] = mapped_column(
+        String(50), unique=True, index=True, nullable=False
+    )
+    email: Mapped[str] = mapped_column(
+        String(100), unique=True, index=True, nullable=False
+    )
     hashed_password: Mapped[str] = mapped_column(String(100), nullable=False)
     full_name: Mapped[str] = mapped_column(String(100))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationship
     images: Mapped[list["Image"]] = relationship("Image", back_populates="owner")
@@ -51,12 +59,18 @@ class Image(Base):
 
     # Metadata
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
 
     # Relationship
     owner: Mapped["User"] = relationship("User", back_populates="images")
-    thumbnails: Mapped[list["Thumbnail"]] = relationship("Thumbnail", back_populates="image")
+    thumbnails: Mapped[list["Thumbnail"]] = relationship(
+        "Thumbnail", back_populates="image"
+    )
 
 
 class Thumbnail(Base):
@@ -76,7 +90,9 @@ class Thumbnail(Base):
     s3_key: Mapped[str] = mapped_column(String(255))
     s3_url: Mapped[str] = mapped_column(String(255))
 
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     # Relationship
     image: Mapped["Image"] = relationship("Image", back_populates="thumbnails")
@@ -86,27 +102,43 @@ class ProcessingTask(Base):
     __tablename__ = "processing_tasks"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    task_id: Mapped[str] = mapped_column(String(50), unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    task_id: Mapped[str] = mapped_column(
+        String(50), unique=True, index=True, default=lambda: str(uuid.uuid4())
+    )
     image_id: Mapped[int] = mapped_column(ForeignKey("images.id"))
     task_type: Mapped[str] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(20), default="pending")
     params: Mapped[str] = mapped_column(Text)
     result: Mapped[str] = mapped_column(Text)
     error: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class UploadSession(Base):
     __tablename__ = "upload_sessions"
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    session_id: Mapped[str] = mapped_column(String(50), unique=True, index=True, default=lambda: str(uuid.uuid4()))
+    session_id: Mapped[str] = mapped_column(
+        String(50), unique=True, index=True, default=lambda: str(uuid.uuid4())
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     total_files: Mapped[int] = mapped_column(default=0)
     processed_files: Mapped[int] = mapped_column(default=0)
     status: Mapped[str] = mapped_column(String(20), default="in_progress")
-    created_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[DateTime] = mapped_column(DateTime(timezone=True), onupdate=func.now())
-    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now()
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

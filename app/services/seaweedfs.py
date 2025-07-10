@@ -14,8 +14,10 @@ class SeaweedFSService:
     def __init__(self) -> None:
         try:
             self.seaweed = SeaweedFS(
-                master_addr=settings.SEAWEEDFS_MASTER_URL.split('://')[-1].split(':')[0],
-                master_port=int(settings.SEAWEEDFS_MASTER_URL.split(':')[-1]),
+                master_addr=settings.SEAWEEDFS_MASTER_URL.split("://")[-1].split(":")[
+                    0
+                ],
+                master_port=int(settings.SEAWEEDFS_MASTER_URL.split(":")[-1]),
             )
             self.available = True
         except Exception as e:
@@ -40,7 +42,7 @@ class SeaweedFSService:
             app_logger.warning("[SeaweedFS] Service unavailable.")
             return None
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 return self.upload_file(f, os.path.basename(file_path))
         except Exception as e:
             app_logger.error(f"[SeaweedFS] Upload from path error: {e}")
@@ -93,17 +95,21 @@ class SeaweedFSService:
 # Init SeaWeedFS Service
 seaweedfs_service = SeaweedFSService()
 
+
 def update_image_record(db: Session, db_image: Image, fid: str, url: str) -> Image:
     db_image.storage_type = StorageType.SEAWEEDFS.value
     db_image.seaweedfs_fid = fid
-    db_image.storage_path =  url
+    db_image.storage_path = url
 
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
     return db_image
 
-def upload_image_to_seaweedfs(db: Session, image_id: int, file: UploadFile) -> Optional[Image]:
+
+def upload_image_to_seaweedfs(
+    db: Session, image_id: int, file: UploadFile
+) -> Optional[Image]:
     db_image = db.query(Image).filter(Image.id == image_id).first()
     if not db_image:
         app_logger.error(f"[SeaweedFS] Image not found: {image_id}")
@@ -156,7 +162,10 @@ def delete_image_from_seaweedfs(db: Session, image_id: int) -> bool:
         app_logger.error(f"[SeaweedFS] Image not found: {image_id}")
         return False
 
-    if db_image.storage_type != StorageType.SEAWEEDFS.value or not db_image.seaweedfs_fid:
+    if (
+        db_image.storage_type != StorageType.SEAWEEDFS.value
+        or not db_image.seaweedfs_fid
+    ):
         app_logger.error(f"[SeaweedFS] Image not stored on SeaweedFS: {image_id}")
         return False
 

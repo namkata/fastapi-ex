@@ -9,7 +9,9 @@ from app.core.logging import app_logger
 # Create database engine
 engine = create_engine(
     settings.DATABASE_URL,
-    connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {},
+    connect_args={"check_same_thread": False}
+    if settings.DATABASE_URL.startswith("sqlite")
+    else {},
     echo=False,
 )
 
@@ -19,6 +21,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 # Base class for models
 Base = declarative_base()
 
+
 # Dependency to get DB session
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
@@ -26,6 +29,7 @@ def get_db() -> Generator[Session, None, None]:
         yield db
     finally:
         db.close()
+
 
 # Function to create database tables
 def create_tables() -> None:
