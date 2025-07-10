@@ -9,14 +9,14 @@ from app.schemas.user import User as UserSchema, UserCreate, UserUpdate
 from app.services.auth import get_current_active_user, get_current_admin_user
 from app.services.user import get_user, get_users, create_user, update_user, delete_user
 
-# Tạo router
+# Create router
 router = APIRouter()
 
 
 @router.post("/", response_model=UserSchema, status_code=status.HTTP_201_CREATED)
-async def create_new_user(user_in: UserCreate, db: Session = Depends(get_db)):
+async def create_new_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserSchema:
     """
-    Tạo user mới
+    Create a new user.
     """
     try:
         db_user = create_user(db, user_in)
@@ -30,21 +30,21 @@ async def create_new_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserSchema)
-async def read_users_me(current_user: User = Depends(get_current_active_user)):
+async def read_users_me(current_user: User = Depends(get_current_active_user)) -> UserSchema:
     """
-    Lấy thông tin user hiện tại
+    Get the currently authenticated user's profile.
     """
     return current_user
 
 
 @router.put("/me", response_model=UserSchema)
 async def update_user_me(
-    user_in: UserUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
+        user_in: UserUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+) -> UserSchema:
     """
-    Cập nhật thông tin user hiện tại
+    Update the currently authenticated user's information.
     """
     db_user = update_user(db, current_user.id, user_in)
     if not db_user:
@@ -57,34 +57,33 @@ async def update_user_me(
 
 @router.get("/", response_model=List[UserSchema])
 async def read_users(
-    skip: int = 0,
-    limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
-):
+        skip: int = 0,
+        limit: int = 100,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user),
+) -> List[UserSchema]:
     """
-    Lấy danh sách users (chỉ admin)
+    Get a list of all users (admin only).
     """
     users = get_users(db, skip=skip, limit=limit)
-    return users
+    return [UserSchema.from_orm(user) for user in users]
 
 
 @router.get("/{user_id}", response_model=UserSchema)
 async def read_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
-):
+        user_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+) -> UserSchema:
     """
-    Lấy thông tin user theo ID
+    Get a user by ID. Admins can access any user; regular users can only access themselves.
     """
-    # Kiểm tra quyền truy cập
     if user_id != current_user.id and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions",
         )
-    
+
     db_user = get_user(db, user_id=user_id)
     if not db_user:
         raise HTTPException(
@@ -96,13 +95,13 @@ async def read_user(
 
 @router.put("/{user_id}", response_model=UserSchema)
 async def update_user_by_id(
-    user_id: int,
-    user_in: UserUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
-):
+        user_id: int,
+        user_in: UserUpdate,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user),
+) -> UserSchema:
     """
-    Cập nhật thông tin user theo ID (chỉ admin)
+    Update a user by ID (admin only).
     """
     db_user = update_user(db, user_id, user_in)
     if not db_user:
@@ -115,32 +114,31 @@ async def update_user_by_id(
 
 @router.delete("/{user_id}", response_model=UserSchema)
 async def delete_user_by_id(
-    user_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_admin_user),
-):
+        user_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_admin_user),
+) -> UserSchema:
     """
-    Xóa user theo ID (chỉ admin)
+    Delete a user by ID (admin only). Users cannot delete themselves.
     """
-    # Không cho phép xóa chính mình
     if user_id == current_user.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete yourself",
         )
-    
+
     db_user = get_user(db, user_id=user_id)
     if not db_user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
-    
+
     success = delete_user(db, user_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error deleting user",
         )
-    
+
     return db_user

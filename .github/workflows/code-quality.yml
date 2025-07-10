@@ -18,19 +18,16 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install ruff black isort mypy pylint
 
-      # - name: Run ruff (lint)
-      #   run: ruff check . --fix
+      - name: Run Ruff (lint + fixable)
+        run: ruff check . --fix
 
-      # - name: Run black (check only)
-      #   run: black --check .
+      - name: Run Black (format check)
+        run: black --check .
 
-      # - name: Run isort (check only)
-      #   run: isort . --check-only
+      - name: Run Isort (import order check)
+        run: isort . --check-only
 
-      # - name: Run mypy
-      #   run: mypy .
-
-      # - name: Run pylint
-      #   run: |
-      #     find . -name "*.py" | xargs pylint --disable=R,C
+      - name: Run MyPy (type checking)
+        run: mypy .

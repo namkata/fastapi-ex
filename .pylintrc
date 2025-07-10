@@ -1,0 +1,2 @@
+[MASTER]
+ignore=venv,.venv,v,__pycache__,migrations,node_modules,.mypy_cache,.ruff_cache

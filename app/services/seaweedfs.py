@@ -11,7 +11,7 @@ from app.schemas.image import StorageType
 
 
 class SeaweedFSService:
-    def __init__(self):
+    def __init__(self) -> None:
         try:
             self.seaweed = SeaweedFS(
                 master_addr=settings.SEAWEEDFS_MASTER_URL.split('://')[-1].split(':')[0],
@@ -51,7 +51,8 @@ class SeaweedFSService:
             app_logger.warning("[SeaweedFS] Service unavailable.")
             return None
         try:
-            return self.upload_file(upload_file.file, upload_file.filename)
+            filename = upload_file.filename or ""
+            return self.upload_file(upload_file.file, filename)
         except Exception as e:
             app_logger.error(f"[SeaweedFS] Upload from UploadFile error: {e}")
             return None
@@ -89,21 +90,18 @@ class SeaweedFSService:
             return None
 
 
-# Service khởi tạo sẵn
+# Init SeaWeedFS Service
 seaweedfs_service = SeaweedFSService()
 
-
-# Shared logic để cập nhật bản ghi image
 def update_image_record(db: Session, db_image: Image, fid: str, url: str) -> Image:
-    db_image.storage_type = StorageType.SEAWEEDFS
+    db_image.storage_type = StorageType.SEAWEEDFS.value
     db_image.seaweedfs_fid = fid
-    db_image.storage_path = url
+    db_image.storage_path =  url
 
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
     return db_image
-
 
 def upload_image_to_seaweedfs(db: Session, image_id: int, file: UploadFile) -> Optional[Image]:
     db_image = db.query(Image).filter(Image.id == image_id).first()
@@ -132,11 +130,12 @@ def upload_local_image_to_seaweedfs(db: Session, image_id: int) -> Optional[Imag
         app_logger.error(f"[SeaweedFS] Image not found: {image_id}")
         return None
 
-    if not db_image.file_path or not os.path.exists(db_image.file_path):
-        app_logger.error(f"[SeaweedFS] File does not exist: {db_image.file_path}")
+    file_path = str(db_image.file_path or "")
+    if not file_path or not os.path.exists(file_path):
+        app_logger.error(f"[SeaweedFS] File does not exist: {file_path}")
         return None
 
-    fid = seaweedfs_service.upload_from_path(db_image.file_path)
+    fid = seaweedfs_service.upload_from_path(file_path)
     if not fid:
         app_logger.error(f"[SeaweedFS] Upload failed from path: {image_id}")
         return None
@@ -157,11 +156,11 @@ def delete_image_from_seaweedfs(db: Session, image_id: int) -> bool:
         app_logger.error(f"[SeaweedFS] Image not found: {image_id}")
         return False
 
-    if db_image.storage_type != StorageType.SEAWEEDFS or not db_image.seaweedfs_fid:
+    if db_image.storage_type != StorageType.SEAWEEDFS.value or not db_image.seaweedfs_fid:
         app_logger.error(f"[SeaweedFS] Image not stored on SeaweedFS: {image_id}")
         return False
 
-    result = seaweedfs_service.delete_file(db_image.seaweedfs_fid)
+    result = seaweedfs_service.delete_file(str(db_image.seaweedfs_fid))
     if not result:
         app_logger.error(f"[SeaweedFS] Delete failed: {image_id}")
         return False

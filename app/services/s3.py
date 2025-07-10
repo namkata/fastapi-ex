@@ -1,5 +1,4 @@
 import os
-import io
 import uuid
 import mimetypes
 from urllib.parse import quote_plus
@@ -16,7 +15,7 @@ from app.schemas.image import StorageType
 
 
 class S3Service:
-    def __init__(self):
+    def __init__(self) -> None:
         try:
             self.s3_client = boto3.client(
                 's3',
@@ -31,9 +30,9 @@ class S3Service:
             app_logger.error(f"Error initializing S3 service: {e}")
             self.available = False
     
-    def _create_bucket_if_not_exists(self):
+    def _create_bucket_if_not_exists(self) -> None:
         """
-        Tạo bucket nếu chưa tồn tại
+        Create S3 bucket if it doesn't exist.
         """
         try:
             self.s3_client.head_bucket(Bucket=self.bucket_name)
@@ -88,9 +87,10 @@ class S3Service:
             app_logger.warning("S3 service is not available")
             return False
         try:
-            if key is None:
-                key = upload_file.filename
-            return self.upload_file(upload_file.file, key, upload_file.content_type)
+            filename = upload_file.filename or "unname_file"
+            key = key or filename
+            content_type = upload_file.content_type or "application/octet-stream"
+            return self.upload_file(upload_file.file, key, content_type)
         except Exception as e:
             app_logger.error(f"Error uploading UploadFile to S3: {e}")
             return False
@@ -157,7 +157,7 @@ class S3Service:
             app_logger.error(f"Error generating presigned URL: {e}")
         return None
 
-# Khởi tạo service
+# Init Service
 s3_service = S3Service()
 
 
@@ -167,7 +167,8 @@ def upload_image_to_s3(db: Session, image_id: int, file: UploadFile) -> Optional
         app_logger.error(f"Image not found: {image_id}")
         return None
 
-    ext = os.path.splitext(file.filename)[-1].lower()
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[-1].lower()
     key = f"images/{db_image.id}/{uuid.uuid4().hex}{ext}"
 
     if not s3_service.upload_from_upload_file(file, key):
@@ -178,8 +179,8 @@ def upload_image_to_s3(db: Session, image_id: int, file: UploadFile) -> Optional
 
     db_image.storage_type = StorageType.S3
     db_image.s3_key = key
-    db_image.s3_url = url
-    db_image.storage_path = url
+    db_image.s3_url = url or ""
+    db_image.storage_path = url or ""
 
     db.add(db_image)
     db.commit()
@@ -195,14 +196,15 @@ def upload_local_image_to_s3(db: Session, image_id: int) -> Optional[Image]:
         app_logger.error(f"Image not found: {image_id}")
         return None
 
-    if not db_image.file_path or not os.path.exists(db_image.file_path):
-        app_logger.error(f"Image file not found: {db_image.file_path}")
+    file_path = db_image.file_path or ""
+    if not db_image.file_path or not os.path.exists(file_path):
+        app_logger.error(f"Image file not found: {file_path}")
         return None
 
     ext = os.path.splitext(db_image.filename)[-1].lower()
     key = f"images/{db_image.id}/{uuid.uuid4().hex}{ext}"
 
-    if not s3_service.upload_from_path(db_image.file_path, key):
+    if not s3_service.upload_from_path(file_path, key):
         app_logger.error(f"Failed to upload image to S3: {image_id}")
         return None
 
@@ -210,8 +212,8 @@ def upload_local_image_to_s3(db: Session, image_id: int) -> Optional[Image]:
 
     db_image.storage_type = StorageType.S3
     db_image.s3_key = key
-    db_image.s3_url = url
-    db_image.storage_path = url
+    db_image.s3_url = url or ""
+    db_image.storage_path = url or ""
 
     db.add(db_image)
     db.commit()
@@ -227,7 +229,7 @@ def delete_image_from_s3(db: Session, image_id: int) -> bool:
         app_logger.error(f"Image not found: {image_id}")
         return False
 
-    if db_image.storage_type != StorageType.S3 or not db_image.s3_key:
+    if db_image.storage_type != StorageType.S3.value or not db_image.s3_key:
         app_logger.error(f"Image not stored on S3: {image_id}")
         return False
 

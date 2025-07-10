@@ -9,7 +9,8 @@ load_dotenv()
 class Settings(BaseSettings):
     # Thông tin cơ bản của dự án
     PROJECT_NAME: str = "FastAPI Example Project"
-    PROJECT_DESCRIPTION: str = "FastAPI project with CRUD, file upload, SeaweedFS and LocalStack S3 integration"
+    PROJECT_DESCRIPTION: str = ("FastAPI project with CRUD, file upload, "
+                                "SeaweedFS and LocalStack S3 integration")
     PROJECT_VERSION: str = "0.1.0"
     
     # API settings

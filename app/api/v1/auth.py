@@ -14,7 +14,7 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=Token)
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)) -> Token:
     """
     Đăng nhập và lấy access token
     """
@@ -34,11 +34,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     )
     
     app_logger.info(f"User logged in: {user.username}")
-    return {"access_token": access_token, "token_type": "bearer"}
+    return Token(access_token=access_token, token_type="bearer")
 
 
 @router.post("/login/json", response_model=Token)
-async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
+async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)) -> Token:
     """
     Đăng nhập với JSON payload và lấy access token
     """
@@ -58,4 +58,4 @@ async def login_json(login_data: LoginRequest, db: Session = Depends(get_db)):
     )
     
     app_logger.info(f"User logged in: {user.username}")
-    return {"access_token": access_token, "token_type": "bearer"}
+    return Token(access_token=access_token, token_type="bearer")

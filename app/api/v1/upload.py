@@ -1,16 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, BackgroundTasks
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from app.core.config import settings
 from app.core.logging import app_logger
 from app.db.session import get_db
 from app.db.models import User
 from app.schemas.image import (
-    ImageUploadResponse, BatchUploadResponse, StorageType, 
-    ImageCreate
+    ImageUploadResponse, BatchUploadResponse, StorageType
 )
+from app.schemas.image import Image as ImageSchema
 from app.services.auth import get_current_active_user
 from app.services.file import (
     validate_image_file, create_image_record, 
@@ -18,9 +16,9 @@ from app.services.file import (
 )
 from app.services.seaweedfs import upload_image_to_seaweedfs
 from app.services.s3 import upload_image_to_s3
-from app.services.image_processor import create_thumbnails, process_image
+from app.services.image_processor import create_thumbnails
 
-# Tạo router
+# Create router
 router = APIRouter()
 
 
@@ -33,33 +31,34 @@ async def upload_image(
     create_thumb: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-):
+) -> ImageUploadResponse:
     """
-    Upload một ảnh
+    Upload a single image
     """
-    # Kiểm tra file có hợp lệ không
     if not validate_image_file(file):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid image file",
         )
-    
-    # Tạo bản ghi Image
-    image_in = ImageCreate(description=description)
+
     db_image = create_image_record(db, file, current_user.id, storage_type, description)
-    
-    # Upload lên storage tương ứng
+
     if storage_type == StorageType.SEAWEEDFS:
-        db_image = upload_image_to_seaweedfs(db, db_image.id, file)
+        uploaded = upload_image_to_seaweedfs(db, db_image.id, file)
+        if not uploaded:
+            raise HTTPException(status_code=500, detail="Error uploading to SeaweedFS")
+        db_image = uploaded
     elif storage_type == StorageType.S3:
-        db_image = upload_image_to_s3(db, db_image.id, file)
-    
-    # Tạo thumbnails nếu cần
+        uploaded = upload_image_to_s3(db, db_image.id, file)
+        if not uploaded:
+            raise HTTPException(status_code=500, detail="Error uploading to S3")
+        db_image = uploaded
+
     if create_thumb:
         background_tasks.add_task(create_thumbnails, db, db_image.id)
-    
+
     app_logger.info(f"Uploaded image: {db_image.id}, storage: {storage_type}")
-    return {"image": db_image}
+    return ImageUploadResponse(image=db_image)
 
 
 @router.post("/images", response_model=BatchUploadResponse)
@@ -71,61 +70,59 @@ async def upload_multiple_images(
     create_thumb: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-):
+) -> BatchUploadResponse:
     """
-    Upload nhiều ảnh cùng lúc
+    Upload multiple images in a batch
     """
-    # Tạo phiên upload
     upload_session = create_upload_session(db, current_user.id, len(files))
-    
     uploaded_images = []
     failed_files = []
     processed_count = 0
-    
-    # Xử lý từng file
+
     for file in files:
         try:
-            # Kiểm tra file có hợp lệ không
             if not validate_image_file(file):
                 failed_files.append(file.filename)
                 continue
-            
-            # Tạo bản ghi Image
+
             db_image = create_image_record(
                 db, file, current_user.id, storage_type, description, upload_session.id
             )
-            
-            # Upload lên storage tương ứng
+
             if storage_type == StorageType.SEAWEEDFS:
-                db_image = upload_image_to_seaweedfs(db, db_image.id, file)
+                uploaded = upload_image_to_seaweedfs(db, db_image.id, file)
+                if not uploaded:
+                    failed_files.append(file.filename)
+                    continue
+                db_image = uploaded
             elif storage_type == StorageType.S3:
-                db_image = upload_image_to_s3(db, db_image.id, file)
-            
-            # Tạo thumbnails nếu cần (trong background)
+                uploaded = upload_image_to_s3(db, db_image.id, file)
+                if not uploaded:
+                    failed_files.append(file.filename)
+                    continue
+                db_image = uploaded
+
             if create_thumb:
                 background_tasks.add_task(create_thumbnails, db, db_image.id)
-            
+
             uploaded_images.append(db_image)
             processed_count += 1
-            
-            # Cập nhật trạng thái phiên upload
             update_upload_session(db, upload_session.id, processed_count)
-            
+
         except Exception as e:
             app_logger.error(f"Error uploading file {file.filename}: {e}")
             failed_files.append(file.filename)
-    
-    # Cập nhật trạng thái phiên upload
+
     upload_session = update_upload_session(db, upload_session.id, processed_count)
-    
+
     app_logger.info(f"Batch upload completed: {processed_count} files, {len(failed_files)} failed")
-    return {
-        "upload_session": upload_session,
-        "uploaded_count": len(uploaded_images),
-        "failed_count": len(failed_files),
-        "images": uploaded_images,
-        "failed_files": failed_files,
-    }
+    return BatchUploadResponse(
+        upload_session=upload_session,
+        uploaded_count=len(uploaded_images),
+        failed_count=len(failed_files),
+        images=[ImageSchema.from_orm(img) for img in uploaded_images],
+        failed_files=[f or "unknown" for f in failed_files],
+    )
 
 
 @router.post("/seaweedfs", response_model=ImageUploadResponse)
@@ -136,36 +133,32 @@ async def upload_to_seaweedfs(
     create_thumb: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-):
+) -> ImageUploadResponse:
     """
-    Upload ảnh lên SeaweedFS
+    Upload image to SeaweedFS
     """
-    # Kiểm tra file có hợp lệ không
     if not validate_image_file(file):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid image file",
         )
-    
-    # Tạo bản ghi Image
+
     db_image = create_image_record(db, file, current_user.id, StorageType.SEAWEEDFS, description)
-    
     file.file.seek(0)
 
-    # Upload lên SeaweedFS
-    db_image = upload_image_to_seaweedfs(db, db_image.id, file)
-    if not db_image:
+    uploaded = upload_image_to_seaweedfs(db, db_image.id, file)
+    if not uploaded:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error uploading to SeaweedFS",
         )
-    
-    # Tạo thumbnails nếu cần
+    db_image = uploaded
+
     if create_thumb:
         background_tasks.add_task(create_thumbnails, db, db_image.id)
-    
+
     app_logger.info(f"Uploaded image to SeaweedFS: {db_image.id}")
-    return {"image": db_image}
+    return ImageUploadResponse(image=db_image)
 
 
 @router.post("/s3", response_model=ImageUploadResponse)
@@ -176,31 +169,28 @@ async def upload_to_s3(
     create_thumb: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-):
+) -> ImageUploadResponse:
     """
-    Upload ảnh lên S3 (LocalStack)
+    Upload image to S3 (e.g., LocalStack)
     """
-    # Kiểm tra file có hợp lệ không
     if not validate_image_file(file):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid image file",
         )
-    
-    # Tạo bản ghi Image
+
     db_image = create_image_record(db, file, current_user.id, StorageType.S3, description)
-    
-    # Upload lên S3
-    db_image = upload_image_to_s3(db, db_image.id, file)
-    if not db_image:
+
+    uploaded = upload_image_to_s3(db, db_image.id, file)
+    if not uploaded:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error uploading to S3",
         )
-    
-    # Tạo thumbnails nếu cần
+    db_image = uploaded
+
     if create_thumb:
         background_tasks.add_task(create_thumbnails, db, db_image.id)
-    
+
     app_logger.info(f"Uploaded image to S3: {db_image.id}")
-    return {"image": db_image}
+    return ImageUploadResponse(image=db_image)

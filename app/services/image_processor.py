@@ -1,8 +1,5 @@
 import os
-import io
-import uuid
-from typing import Optional, Dict, Any, List, Tuple
-from fastapi import UploadFile
+from typing import Optional, List, Tuple
 from sqlalchemy.orm import Session
 from PIL import Image as PILImage
 # Tạm thời bỏ qua thư viện Wand do vấn đề với MagickWand
@@ -401,12 +398,16 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
     # Tạo các thumbnail
     for size_info in thumbnail_sizes:
         try:
-            # Tạo thumbnail
-            result_path = image_processor.create_thumbnail(
-                image.file_path, 
-                (size_info["width"], size_info["height"])
-            )
-            
+            width_raw = size_info.get("width")
+            height_raw = size_info.get("height")
+
+            if not isinstance(width_raw, (int, float, str)) or not isinstance(height_raw, (int, float, str)):
+                raise ValueError("Invalid size values")
+
+            width = float(width_raw)
+            height = float(height_raw)
+            result_path = image_processor.create_thumbnail(str(image.file_path), (width, height))
+
             if not result_path:
                 app_logger.error(f"Failed to create thumbnail: {size_info['size']}")
                 continue

@@ -3,50 +3,46 @@ import uuid
 import shutil
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime
-from fastapi import UploadFile, HTTPException
+from fastapi import UploadFile
 from sqlalchemy.orm import Session
 from PIL import Image as PILImage
 import io
 
 from app.core.config import settings
 from app.core.logging import app_logger
-from app.db.models import Image, Thumbnail, ProcessingTask, UploadSession, User
-from app.schemas.image import StorageType, ProcessStatus, ImageCreate
+from app.db.models import Image, ProcessingTask, UploadSession
+from app.schemas.image import StorageType, ProcessStatus
 
 
 def validate_image_file(file: UploadFile) -> bool:
-    """
-    Kiểm tra file có phải là ảnh hợp lệ không
-    """
-    # Kiểm tra extension
-    ext = file.filename.split('.')[-1].lower()
+    filename = file.filename or ""
+    content_type = file.content_type or ""
+
+    ext = filename.split('.')[-1].lower()
     if ext not in settings.ALLOWED_EXTENSIONS:
         app_logger.warning(f"Invalid file extension: {ext}")
         return False
-    
-    # Kiểm tra content type
-    if not file.content_type.startswith('image/'):
-        app_logger.warning(f"Invalid content type: {file.content_type}")
+
+    if not content_type.startswith('image/'):
+        app_logger.warning(f"Invalid content type: {content_type}")
         return False
-    
-    # Kiểm tra kích thước file
+
     file.file.seek(0, os.SEEK_END)
     file_size = file.file.tell()
-    file.file.seek(0)  # Reset file position
-    
+    file.file.seek(0)
+
     if file_size > settings.MAX_FILE_SIZE:
         app_logger.warning(f"File too large: {file_size} bytes")
         return False
-    
-    # Kiểm tra file có mở được bằng PIL không
+
     try:
         img = PILImage.open(io.BytesIO(file.file.read()))
-        img.verify()  # Verify it's an image
-        file.file.seek(0)  # Reset file position
+        img.verify()
+        file.file.seek(0)
         return True
     except Exception as e:
         app_logger.error(f"Invalid image file: {e}")
-        file.file.seek(0)  # Reset file position
+        file.file.seek(0)
         return False
 
 
@@ -94,37 +90,41 @@ def save_upload_file_local(file: UploadFile, destination: str) -> str:
 
 
 def create_image_record(
-    db: Session, 
-    file: UploadFile, 
-    user_id: int, 
-    storage_type: StorageType,
-    description: Optional[str] = None,
-    upload_session_id: Optional[int] = None,
+        db: Session,
+        file: UploadFile,
+        user_id: int,
+        storage_type: StorageType,
+        description: Optional[str] = None,
+        upload_session_id: Optional[int] = None,
 ) -> Image:
     """
-    Tạo bản ghi Image trong database
+    Create an Image record in the database.
     """
-    # Tạo filename ngẫu nhiên
-    ext = file.filename.split('.')[-1].lower()
+    # Ensure filename and content_type are not None
+    original_filename = file.filename or "unknown.jpg"
+    content_type = file.content_type or "application/octet-stream"
+
+    # Generate a random filename
+    ext = original_filename.split('.')[-1].lower()
     filename = f"{uuid.uuid4()}.{ext}"
-    
-    # Tạo đường dẫn lưu file
+
+    # Define the local storage path
     file_path = os.path.join(settings.UPLOAD_DIR, filename)
-    
-    # Lấy thông tin ảnh
+
+    # Extract image metadata
     image_info = get_image_info(file)
-    
-    # Lưu file vào local storage
+
+    # Save file locally if needed
     if storage_type == StorageType.LOCAL:
         save_upload_file_local(file, file_path)
-    
-    # Tạo bản ghi Image
+
+    # Create Image record
     db_image = Image(
         filename=filename,
-        original_filename=file.filename,
+        original_filename=original_filename,
         file_path=file_path if storage_type == StorageType.LOCAL else None,
         file_size=image_info["file_size"],
-        file_type=file.content_type,
+        file_type=content_type,
         width=image_info["width"],
         height=image_info["height"],
         description=description,
@@ -134,15 +134,14 @@ def create_image_record(
         process_status=ProcessStatus.PENDING,
         owner_id=user_id,
     )
-    
-    # Lưu vào database
+
+    # Save to database
     db.add(db_image)
     db.commit()
     db.refresh(db_image)
-    
+
     app_logger.info(f"Created image record: {db_image.id}")
     return db_image
-
 
 def create_upload_session(db: Session, user_id: int, total_files: int) -> UploadSession:
     """

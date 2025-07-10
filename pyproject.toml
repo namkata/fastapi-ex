@@ -1,0 +1,32 @@
+[tool.black]
+exclude = '''
+/(
+    \.venv|
+    venv|
+    v|
+    __pycache__|
+    migrations|
+    node_modules|
+    \.mypy_cache|
+    \.ruff_cache|
+    \.pytest_cache
+)/
+'''
+
+[tool.isort]
+skip = [".venv", "venv", "v", "__pycache__", "migrations", "node_modules", ".mypy_cache", ".ruff_cache"]
+
+[tool.ruff]
+exclude = [
+    ".venv",
+    "venv",
+    "v",
+    "__pycache__",
+    "migrations",
+    "node_modules",
+    ".mypy_cache",
+    ".ruff_cache"
+]
+
+[tool.mypy]
+exclude = '^(venv|\.venv|v|__pycache__|migrations|node_modules|\.mypy_cache|\.ruff_cache)/'

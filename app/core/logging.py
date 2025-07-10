@@ -1,9 +1,9 @@
 import os
 import sys
-from loguru import logger
+from loguru import logger, Logger
 from app.core.config import settings
 
-def setup_logging():
+def setup_logging() -> Logger:
     """
     Thiết lập cấu hình logging cho ứng dụng sử dụng loguru
     """

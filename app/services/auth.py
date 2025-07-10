@@ -79,11 +79,11 @@ async def get_current_user(db: Session = Depends(get_db), token: str = Depends(o
         if token_data.sub is None:
             app_logger.error("Token missing sub")
             raise credentials_exception
-        
-        if datetime.fromtimestamp(token_data.exp) < datetime.utcnow():
-            app_logger.error("Token expired")
+
+        if token_data.exp is None or datetime.fromtimestamp(token_data.exp) < datetime.utcnow():
+            app_logger.error("Token expired or missing exp")
             raise credentials_exception
-            
+
     except JWTError as e:
         app_logger.error(f"JWT error: {e}")
         raise credentials_exception
