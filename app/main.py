@@ -9,6 +9,7 @@ from app.api.routes import api_router
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.db.session import create_tables
+from app.services.storage_init import initialize_storage_backends
 from app.utils.middleware import LoggingMiddleware
 
 # Setup logging
@@ -51,12 +52,16 @@ os.makedirs("static", exist_ok=True)
 # Mount static directory to serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Mount uploads directory to serve uploaded files
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
-# Create database tables on startup
+
+# Create database tables and initialize storage on startup
 @app.on_event("startup")
 async def startup_event() -> None:
-    """Run on application startup: initialize DB tables."""
+    """Run on application startup: initialize DB tables and storage backends."""
     create_tables()
+    initialize_storage_backends()
 
 
 # Health check endpoint

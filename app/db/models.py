@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,11 +27,11 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationship
-    images: Mapped[list["Image"]] = relationship("Image", back_populates="owner")
+    images: Mapped[List["Image"]] = relationship("Image", back_populates="owner")
 
 
 class Image(Base):
@@ -40,24 +40,24 @@ class Image(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     filename: Mapped[str] = mapped_column(String(255), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    file_path: Mapped[str] = mapped_column(String(255))
-    file_size: Mapped[int] = mapped_column()
-    file_type: Mapped[str] = mapped_column(String(50))
-    width: Mapped[int] = mapped_column()
-    height: Mapped[int] = mapped_column()
-    description: Mapped[str] = mapped_column(Text)
+    file_path: Mapped[Optional[str]] = mapped_column(String(255))
+    file_size: Mapped[Optional[int]] = mapped_column()
+    file_type: Mapped[Optional[str]] = mapped_column(String(50))
+    width: Mapped[Optional[int]] = mapped_column()
+    height: Mapped[Optional[int]] = mapped_column()
+    description: Mapped[Optional[str]] = mapped_column(Text)
 
     # Storage information
-    storage_type: Mapped[str] = mapped_column(String(20))
-    storage_path: Mapped[str] = mapped_column(String(255))
-    seaweedfs_fid: Mapped[str] = mapped_column(String(255))
-    s3_key: Mapped[str] = mapped_column(String(255))
-    s3_url: Mapped[str] = mapped_column(String(255))
+    storage_type: Mapped[Optional[str]] = mapped_column(String(20))
+    storage_path: Mapped[Optional[str]] = mapped_column(String(255))
+    seaweedfs_fid: Mapped[Optional[str]] = mapped_column(String(255))
+    s3_key: Mapped[Optional[str]] = mapped_column(String(255))
+    s3_url: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Processing status
     is_processed: Mapped[bool] = mapped_column(Boolean, default=False)
     process_status: Mapped[str] = mapped_column(String(20), default="pending")
-    process_error: Mapped[str] = mapped_column(Text)
+    process_error: Mapped[Optional[str]] = mapped_column(Text)
 
     # Metadata
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -65,14 +65,16 @@ class Image(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
     # Relationship
     owner: Mapped["User"] = relationship("User", back_populates="images")
-    thumbnails: Mapped[list["Thumbnail"]] = relationship(
+    thumbnails: Mapped[List["Thumbnail"]] = relationship(
         "Thumbnail", back_populates="image"
     )
+
+    __mapper_args__ = {"confirm_deleted_rows": False}
 
 
 class Thumbnail(Base):
@@ -117,7 +119,7 @@ class ProcessingTask(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
@@ -139,7 +141,7 @@ class UploadSession(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     updated_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True), onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True

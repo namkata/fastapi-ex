@@ -20,14 +20,12 @@ from app.schemas.image import Image as ImageSchema
 from app.schemas.image import ImageUploadResponse, StorageType
 from app.services.auth import get_current_active_user
 from app.services.file import (
-    create_image_record,
     create_upload_session,
     update_upload_session,
-    validate_image_file,
 )
 from app.services.image_processor import create_thumbnails
-from app.services.s3 import upload_image_to_s3
-from app.services.seaweedfs import upload_image_to_seaweedfs
+from app.services.upload_service import upload_service
+from app.services.storage_init import get_storage_health_report
 
 # Create router
 router = APIRouter()
@@ -44,32 +42,34 @@ async def upload_image(
     current_user: User = Depends(get_current_active_user),
 ) -> ImageUploadResponse:
     """
-    Upload a single image
+    Upload a single image using the unified upload service
     """
-    if not validate_image_file(file):
+    try:
+        db_image = await upload_service.upload_file(
+            db=db,
+            file=file,
+            user_id=current_user.id,
+            storage_type=storage_type,
+            description=description
+        )
+        
+        if create_thumb:
+            background_tasks.add_task(create_thumbnails, db, db_image.id)
+        
+        app_logger.info(f"Uploaded image: {db_image.id}, storage: {storage_type}")
+        return ImageUploadResponse(image=db_image)
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid image file",
+            detail=str(e)
         )
-
-    db_image = create_image_record(db, file, current_user.id, storage_type, description)
-
-    if storage_type == StorageType.SEAWEEDFS:
-        uploaded = upload_image_to_seaweedfs(db, db_image.id, file)
-        if not uploaded:
-            raise HTTPException(status_code=500, detail="Error uploading to SeaweedFS")
-        db_image = uploaded
-    elif storage_type == StorageType.S3:
-        uploaded = upload_image_to_s3(db, db_image.id, file)
-        if not uploaded:
-            raise HTTPException(status_code=500, detail="Error uploading to S3")
-        db_image = uploaded
-
-    if create_thumb:
-        background_tasks.add_task(create_thumbnails, db, db_image.id)
-
-    app_logger.info(f"Uploaded image: {db_image.id}, storage: {storage_type}")
-    return ImageUploadResponse(image=db_image)
+    except Exception as e:
+        app_logger.error(f"Error uploading image: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error uploading image"
+        )
 
 
 @router.post("/images", response_model=BatchUploadResponse)
@@ -83,59 +83,46 @@ async def upload_multiple_images(
     current_user: User = Depends(get_current_active_user),
 ) -> BatchUploadResponse:
     """
-    Upload multiple images in a batch
+    Upload multiple images in a batch using the unified upload service
     """
     upload_session = create_upload_session(db, current_user.id, len(files))
-    uploaded_images = []
-    failed_files = []
-    processed_count = 0
-
-    for file in files:
-        try:
-            if not validate_image_file(file):
-                failed_files.append(file.filename)
-                continue
-
-            db_image = create_image_record(
-                db, file, current_user.id, storage_type, description, upload_session.id
-            )
-
-            if storage_type == StorageType.SEAWEEDFS:
-                uploaded = upload_image_to_seaweedfs(db, db_image.id, file)
-                if not uploaded:
-                    failed_files.append(file.filename)
-                    continue
-                db_image = uploaded
-            elif storage_type == StorageType.S3:
-                uploaded = upload_image_to_s3(db, db_image.id, file)
-                if not uploaded:
-                    failed_files.append(file.filename)
-                    continue
-                db_image = uploaded
-
-            if create_thumb:
-                background_tasks.add_task(create_thumbnails, db, db_image.id)
-
-            uploaded_images.append(db_image)
-            processed_count += 1
-            update_upload_session(db, upload_session.id, processed_count)
-
-        except Exception as e:
-            app_logger.error(f"Error uploading file {file.filename}: {e}")
-            failed_files.append(file.filename)
-
-    upload_session = update_upload_session(db, upload_session.id, processed_count)
-
-    app_logger.info(
-        f"Batch upload completed: {processed_count} files, {len(failed_files)} failed"
-    )
-    return BatchUploadResponse(
-        upload_session=upload_session,
-        uploaded_count=len(uploaded_images),
-        failed_count=len(failed_files),
-        images=[ImageSchema.from_orm(img) for img in uploaded_images],
-        failed_files=[f or "unknown" for f in failed_files],
-    )
+    
+    try:
+        result = await upload_service.batch_upload(
+            db=db,
+            files=files,
+            user_id=current_user.id,
+            storage_type=storage_type,
+            description=description,
+            upload_session_id=upload_session.id
+        )
+        
+        # Add thumbnail creation tasks for successful uploads
+        if create_thumb:
+            for image in result["uploaded_images"]:
+                background_tasks.add_task(create_thumbnails, db, image.id)
+        
+        # Update final session status
+        upload_session = update_upload_session(db, upload_session.id, result["uploaded_count"])
+        
+        app_logger.info(
+            f"Batch upload completed: {result['uploaded_count']} files, {result['failed_count']} failed"
+        )
+        
+        return BatchUploadResponse(
+            upload_session=upload_session,
+            uploaded_count=result["uploaded_count"],
+            failed_count=result["failed_count"],
+            images=[ImageSchema.from_orm(img) for img in result["uploaded_images"]],
+            failed_files=result["failed_files"],
+        )
+        
+    except Exception as e:
+        app_logger.error(f"Error in batch upload: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error processing batch upload"
+        )
 
 
 @router.post("/seaweedfs", response_model=ImageUploadResponse)
@@ -148,32 +135,34 @@ async def upload_to_seaweedfs(
     current_user: User = Depends(get_current_active_user),
 ) -> ImageUploadResponse:
     """
-    Upload image to SeaweedFS
+    Upload image directly to SeaweedFS using the unified upload service
     """
-    if not validate_image_file(file):
+    try:
+        db_image = await upload_service.upload_file(
+            db=db,
+            file=file,
+            user_id=current_user.id,
+            storage_type=StorageType.SEAWEEDFS,
+            description=description
+        )
+        
+        if create_thumb:
+            background_tasks.add_task(create_thumbnails, db, db_image.id)
+        
+        app_logger.info(f"Uploaded image to SeaweedFS: {db_image.id}")
+        return ImageUploadResponse(image=db_image)
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid image file",
+            detail=str(e)
         )
-
-    db_image = create_image_record(
-        db, file, current_user.id, StorageType.SEAWEEDFS, description
-    )
-    file.file.seek(0)
-
-    uploaded = upload_image_to_seaweedfs(db, db_image.id, file)
-    if not uploaded:
+    except Exception as e:
+        app_logger.error(f"Error uploading to SeaweedFS: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error uploading to SeaweedFS",
+            detail="Error uploading to SeaweedFS"
         )
-    db_image = uploaded
-
-    if create_thumb:
-        background_tasks.add_task(create_thumbnails, db, db_image.id)
-
-    app_logger.info(f"Uploaded image to SeaweedFS: {db_image.id}")
-    return ImageUploadResponse(image=db_image)
 
 
 @router.post("/s3", response_model=ImageUploadResponse)
@@ -186,28 +175,52 @@ async def upload_to_s3(
     current_user: User = Depends(get_current_active_user),
 ) -> ImageUploadResponse:
     """
-    Upload image to S3 (e.g., LocalStack)
+    Upload image directly to S3 (e.g., LocalStack) using the unified upload service
     """
-    if not validate_image_file(file):
+    try:
+        db_image = await upload_service.upload_file(
+            db=db,
+            file=file,
+            user_id=current_user.id,
+            storage_type=StorageType.S3,
+            description=description
+        )
+        
+        if create_thumb:
+            background_tasks.add_task(create_thumbnails, db, db_image.id)
+        
+        app_logger.info(f"Uploaded image to S3: {db_image.id}")
+        return ImageUploadResponse(image=db_image)
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid image file",
+            detail=str(e)
         )
+    except Exception as e:
+        app_logger.error(f"Error uploading to S3: {e}")
+        raise HTTPException(
+             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+             detail="Error uploading to S3"
+         )
 
-    db_image = create_image_record(
-        db, file, current_user.id, StorageType.S3, description
-    )
 
-    uploaded = upload_image_to_s3(db, db_image.id, file)
-    if not uploaded:
+@router.get("/health")
+async def storage_health_check() -> dict:
+    """
+    Get health status of all storage backends
+    """
+    try:
+        health_report = get_storage_health_report()
+        return {
+            "status": "ok" if health_report["available_count"] > 0 else "degraded",
+            "storage_backends": health_report["backends"],
+            "available_backends": health_report["available_count"],
+            "total_backends": health_report["total_count"]
+        }
+    except Exception as e:
+        app_logger.error(f"Error checking storage health: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error uploading to S3",
+            detail="Error checking storage health"
         )
-    db_image = uploaded
-
-    if create_thumb:
-        background_tasks.add_task(create_thumbnails, db, db_image.id)
-
-    app_logger.info(f"Uploaded image to S3: {db_image.id}")
-    return ImageUploadResponse(image=db_image)

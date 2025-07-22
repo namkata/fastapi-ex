@@ -3,20 +3,21 @@ import os
 import uuid
 from typing import BinaryIO, Optional
 from urllib.parse import quote_plus
-
 import boto3
 from botocore.exceptions import ClientError
+from botocore.config import Config
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
-
 from app.core.config import settings
 from app.core.logging import app_logger
 from app.db.models import Image
 from app.schemas.image import StorageType
+from app.services.storage_manager import StorageBackend
 
 
-class S3Service:
-    def __init__(self) -> None:
+class S3Service(StorageBackend):
+    def _initialize(self) -> None:
+        """Initialize S3 client and bucket"""
         try:
             self.s3_client = boto3.client(
                 "s3",
@@ -24,9 +25,14 @@ class S3Service:
                 aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
                 region_name=settings.AWS_REGION,
                 endpoint_url=settings.S3_ENDPOINT_URL,
+                config=Config(s3={"addressing_style": "path"})
             )
             self.bucket_name = settings.S3_BUCKET_NAME
+            
+            # Test connection and create bucket if needed
+            self._create_bucket_if_not_exists()
             self.available = True
+            app_logger.info(f"S3 service initialized successfully (bucket: {self.bucket_name})")
         except Exception as e:
             app_logger.error(f"Error initializing S3 service: {e}")
             self.available = False
@@ -42,18 +48,16 @@ class S3Service:
             error_code = e.response["Error"]["Code"]
             if error_code == "404":
                 # Bucket không tồn tại, tạo mới
-                self.s3_client.create_bucket(
-                    Bucket=self.bucket_name,
-                    CreateBucketConfiguration={
-                        "LocationConstraint": settings.AWS_REGION
-                    },
-                )
+                create_params = {"Bucket": self.bucket_name}
+                if settings.AWS_REGION != "us-east-1":
+                    create_params["CreateBucketConfiguration"] = {"LocationConstraint": settings.AWS_REGION}
+                self.s3_client.create_bucket(**create_params)
                 app_logger.info(f"Created S3 bucket: {self.bucket_name}")
             else:
                 app_logger.error(f"Error checking S3 bucket: {e}")
 
     def upload_file(
-        self, file: BinaryIO, key: str, content_type: Optional[str] = None
+        self, file: BinaryIO, key: str, content_type: Optional[str] = None, **kwargs
     ) -> bool:
         if not self.available:
             app_logger.warning("S3 service is not available")
@@ -61,6 +65,13 @@ class S3Service:
         try:
             file.seek(0)
             extra_args = {"ContentType": content_type} if content_type else {}
+            
+            # Add any additional S3-specific parameters from kwargs
+            if 'metadata' in kwargs:
+                extra_args['Metadata'] = kwargs['metadata']
+            if 'cache_control' in kwargs:
+                extra_args['CacheControl'] = kwargs['cache_control']
+            
             self.s3_client.upload_fileobj(
                 file, self.bucket_name, key, ExtraArgs=extra_args
             )
@@ -74,31 +85,42 @@ class S3Service:
             app_logger.error(f"Error uploading file to S3: {e}")
         return False
 
-    def upload_from_path(self, file_path: str, key: Optional[str] = None) -> bool:
+    def upload_from_path(self, file_path: str, key: Optional[str] = None, **kwargs) -> bool:
         if not self.available:
             app_logger.warning("S3 service is not available")
             return False
         try:
+            if not os.path.exists(file_path):
+                app_logger.error(f"File not found: {file_path}")
+                return False
+            
             if key is None:
-                key = os.path.basename(file_path)
+                filename = os.path.basename(file_path)
+                ext = os.path.splitext(filename)[-1].lower()
+                key = f"uploads/{uuid.uuid4().hex}{ext}"
 
             content_type, _ = mimetypes.guess_type(file_path)
             with open(file_path, "rb") as f:
-                return self.upload_file(f, key, content_type)
+                return self.upload_file(f, key, content_type, **kwargs)
         except Exception as e:
             app_logger.error(f"Error uploading file from path to S3: {e}")
             return False
 
     def upload_from_upload_file(
-        self, upload_file: UploadFile, key: Optional[str] = None
+        self, upload_file: UploadFile, key: Optional[str] = None, **kwargs
     ) -> bool:
         if not self.available:
             app_logger.warning("S3 service is not available")
             return False
         try:
-            filename = upload_file.filename or "unname_file"
-            key = key or filename
+            filename = upload_file.filename or "unnamed_file"
+            if key is None:
+                # Generate unique key if not provided
+                ext = os.path.splitext(filename)[-1].lower()
+                key = f"uploads/{uuid.uuid4().hex}{ext}"
+            
             content_type = upload_file.content_type or "application/octet-stream"
+            upload_file.file.seek(0)  # Ensure we're at the beginning
             return self.upload_file(upload_file.file, key, content_type)
         except Exception as e:
             app_logger.error(f"Error uploading UploadFile to S3: {e}")
@@ -109,7 +131,8 @@ class S3Service:
             app_logger.warning("S3 service is not available")
             return None
         encoded_key = quote_plus(key)
-        return f"{settings.S3_ENDPOINT_URL}/{self.bucket_name}/{encoded_key}"
+        replaceEndpoint = settings.S3_ENDPOINT_URL.replace("localstack", "localhost")
+        return f"{replaceEndpoint}/{self.bucket_name}/{encoded_key}"
 
     def delete_file(self, key: str) -> bool:
         if not self.available:

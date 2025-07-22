@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 
 class StorageType(str, Enum):
@@ -51,6 +51,25 @@ class Thumbnail(ThumbnailBase):
     s3_url: Optional[str] = None
     created_at: datetime
 
+    url: Optional[str] = None
+
+    @validator('url', always=True)
+    def calculate_url(cls, v, values):
+        storage_type = values.get('storage_type')
+        if storage_type == StorageType.S3:
+            return values.get('s3_url')
+        elif storage_type == StorageType.SEAWEEDFS:
+            fid = values.get('seaweedfs_fid')
+            if fid:
+                from app.services.seaweedfs import seaweedfs_service
+                return seaweedfs_service.get_file_url_from_fid(fid)
+        elif storage_type == StorageType.LOCAL:
+            file_path = values.get('file_path')
+            if file_path:
+                return f"http://localhost:8000/{file_path}"
+            return None
+        return v
+
     class Config:
         orm_mode = True
 
@@ -80,6 +99,25 @@ class Image(ImageBase):
     updated_at: Optional[datetime] = None
 
     thumbnails: List[Thumbnail] = []
+
+    url: Optional[str] = None
+
+    @validator('url', always=True)
+    def calculate_url(cls, v, values):
+        storage_type = values.get('storage_type')
+        if storage_type == StorageType.S3:
+            return values.get('s3_url')
+        elif storage_type == StorageType.SEAWEEDFS:
+            fid = values.get('seaweedfs_fid')
+            if fid:
+                from app.services.seaweedfs import seaweedfs_service
+                return seaweedfs_service.get_file_url_from_fid(fid)
+        elif storage_type == StorageType.LOCAL:
+            file_path = values.get('file_path')
+            if file_path:
+                return f"http://localhost:8000/{file_path}"
+            return None
+        return v
 
     class Config:
         orm_mode = True

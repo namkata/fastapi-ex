@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # FastAPI application
   app:
@@ -15,17 +13,21 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/fastapi
       - SEAWEEDFS_MASTER_URL=http://seaweedfs-master:9333
-      - SEAWEEDFS_VOLUME_URL=http://seaweedfs-volume:8080
+      - SEAWEEDFS_VOLUME_URL=http://localhost:8080
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
       - AWS_REGION=us-east-1
       - S3_ENDPOINT_URL=http://localstack:4566
       - S3_BUCKET_NAME=images-bucket
     depends_on:
-      - db
-      - seaweedfs-master
-      - seaweedfs-volume
-      - localstack
+      db:
+        condition: service_healthy
+      seaweedfs-master:
+        condition: service_started
+      seaweedfs-volume:
+        condition: service_started
+      localstack:
+        condition: service_healthy
 
   # PostgreSQL database
   db:
@@ -40,6 +42,11 @@ services:
       - POSTGRES_DB=fastapi
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # SeaweedFS master
   seaweedfs-master:
@@ -73,9 +80,14 @@ services:
     environment:
       - SERVICES=s3
       - DEBUG=1
-      - DATA_DIR=/tmp/localstack/data
+      - DATA_DIR=/var/lib/localstack
     volumes:
-      - localstack_data:/tmp/localstack
+      - localstack_data:/var/lib/localstack
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:
