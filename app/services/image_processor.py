@@ -387,10 +387,35 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
         app_logger.error(f"Image not found: {image_id}")
         return []
 
-    # Kiểm tra file ảnh có tồn tại không
+    # Download from remote if necessary
     if not image.file_path or not os.path.exists(image.file_path):
-        app_logger.error(f"Image file not found: {image.file_path}")
-        return []
+        if image.storage_type == "seaweedfs" and image.seaweedfs_fid:
+            file_data = seaweedfs_service.download_file(image.seaweedfs_fid)
+            if not file_data:
+                app_logger.error(f"Failed to download image from SeaweedFS: {image.id}")
+                return []
+            local_path = os.path.join(settings.UPLOAD_DIR, image.filename)
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(file_data)
+            image.file_path = local_path
+            db.add(image)
+            db.commit()
+        elif image.storage_type == "s3" and image.s3_key:
+            file_data = s3_service.download_file(image.s3_key)
+            if not file_data:
+                app_logger.error(f"Failed to download image from S3: {image.id}")
+                return []
+            local_path = os.path.join(settings.UPLOAD_DIR, image.filename)
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            with open(local_path, "wb") as f:
+                f.write(file_data)
+            image.file_path = local_path
+            db.add(image)
+            db.commit()
+        else:
+            app_logger.error(f"Image file not found: {image.file_path}")
+            return []
 
     # Định nghĩa các kích thước thumbnail
     thumbnail_sizes = [

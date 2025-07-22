@@ -85,14 +85,14 @@ class Thumbnail(Base):
     size: Mapped[str] = mapped_column(String(20))
     width: Mapped[int] = mapped_column()
     height: Mapped[int] = mapped_column()
-    file_path: Mapped[str] = mapped_column(String(255))
+    file_path: Mapped[Optional[str]] = mapped_column(String(255))
 
     # Storage information
     storage_type: Mapped[str] = mapped_column(String(20))
-    storage_path: Mapped[str] = mapped_column(String(255))
-    seaweedfs_fid: Mapped[str] = mapped_column(String(255))
-    s3_key: Mapped[str] = mapped_column(String(255))
-    s3_url: Mapped[str] = mapped_column(String(255))
+    storage_path: Mapped[Optional[str]] = mapped_column(String(255))
+    seaweedfs_fid: Mapped[Optional[str]] = mapped_column(String(255))
+    s3_key: Mapped[Optional[str]] = mapped_column(String(255))
+    s3_url: Mapped[Optional[str]] = mapped_column(String(255))
 
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

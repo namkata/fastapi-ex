@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.logging import app_logger
 from app.db.models import Image
-from app.schemas.image import StorageType
+from app.services.image_processor import create_thumbnails
+from app.schemas.image import StorageType, ProcessStatus
 from app.services.storage_manager import storage_manager
 from app.services.file import get_image_info, validate_image_file, create_image_record, update_upload_session
 
@@ -122,6 +123,24 @@ class UploadService:
             db.commit()
             db.refresh(db_image)
             
+            # Auto create thumbnails and update status
+            try:
+                db_image.process_status = ProcessStatus.PROCESSING
+                db.commit()
+                
+                thumbnails = create_thumbnails(db, db_image.id)
+                if thumbnails:
+                    db_image.process_status = ProcessStatus.COMPLETED
+                else:
+                    db_image.process_status = ProcessStatus.FAILED
+                    db_image.process_error = "Failed to create thumbnails"
+                db.commit()
+            except Exception as e:
+                db_image.process_status = ProcessStatus.FAILED
+                db_image.process_error = str(e)
+                db.commit()
+                app_logger.error(f"Auto thumbnail creation error: {e}")
+
             app_logger.info(f"Successfully uploaded file {filename} to {storage_type.value}")
             return db_image
         

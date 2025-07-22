@@ -1,5 +1,6 @@
 import os
 import uuid
+import requests
 from typing import BinaryIO, Optional
 
 from fastapi import UploadFile
@@ -33,12 +34,9 @@ class SeaweedFSService(StorageBackend):
                 master_addr=master_addr,
                 master_port=master_port,
             )
-            
-            # Test connection by getting cluster status
-            import requests
 
             try:
-                response = requests.get(f"http://{master_addr}:{master_port}/dir/status")
+                response = requests.get(f"http://{master_addr.replace('seaweedfs-master', 'localhost')}:{master_port}/dir/status")
                 if response.status_code == 200:
                     self.available = True
                     app_logger.info(f"SeaweedFS service initialized successfully (master: {master_addr}:{master_port})")
