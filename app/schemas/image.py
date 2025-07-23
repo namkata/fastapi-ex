@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -133,6 +134,53 @@ class ProcessingTaskBase(BaseModel):
     image_id: int
     task_type: str
     params: Dict[str, Any]
+    
+    class Config:
+        schema_extra = {
+            "examples": [
+                {
+                    "image_id": 1,
+                    "task_type": "thumbnail",
+                    "params": {
+                        "width": 300,
+                        "height": 300,
+                        "size": "medium"
+                    }
+                },
+                {
+                    "image_id": 1,
+                    "task_type": "resize",
+                    "params": {
+                        "width": 1024,
+                        "height": 768
+                    }
+                },
+                {
+                    "image_id": 1,
+                    "task_type": "crop",
+                    "params": {
+                        "left": 50,
+                        "upper": 50,
+                        "right": 250,
+                        "lower": 250
+                    }
+                },
+                {
+                    "image_id": 1,
+                    "task_type": "filter",
+                    "params": {
+                        "filter_type": "grayscale"
+                    }
+                },
+                {
+                    "image_id": 1,
+                    "task_type": "rotate",
+                    "params": {
+                        "angle": 90
+                    }
+                }
+            ]
+        }
 
 
 class ProcessingTaskCreate(ProcessingTaskBase):
@@ -148,6 +196,24 @@ class ProcessingTask(ProcessingTaskBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
+
+    @validator('params', pre=True)
+    def parse_params(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return {}
+        return v
+
+    @validator('result', pre=True)
+    def parse_result(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return None
+        return v
 
     class Config:
         orm_mode = True

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.logging import app_logger
-from app.db.models import Image, ProcessingTask, UploadSession
+from app.db.models import Image, ProcessingTask, Thumbnail, UploadSession
 from app.schemas.image import ProcessStatus, StorageType
 
 
@@ -272,24 +272,71 @@ def update_image(
 
 def delete_image(db: Session, image_id: int) -> bool:
     """
-    Xóa ảnh
+    Xóa ảnh và tất cả thumbnails liên quan
     """
     db_image = get_image(db, image_id=image_id)
     if not db_image:
         app_logger.warning(f"Image not found: {image_id}")
         return False
 
-    # Xóa file nếu lưu ở local
+    # Xóa tất cả thumbnails trước
+    thumbnails = db.query(Thumbnail).filter(Thumbnail.image_id == image_id).all()
+    for thumbnail in thumbnails:
+        # Xóa file thumbnail nếu lưu ở local
+        if thumbnail.storage_type == StorageType.LOCAL and thumbnail.file_path:
+            try:
+                if os.path.exists(thumbnail.file_path):
+                    os.remove(thumbnail.file_path)
+            except Exception as e:
+                app_logger.error(f"Error deleting thumbnail file: {e}")
+        
+        # Xóa từ remote storage nếu cần
+        if thumbnail.storage_type == "seaweedfs" and thumbnail.seaweedfs_fid:
+            try:
+                from app.services.seaweedfs import seaweedfs_service
+                seaweedfs_service.delete_file(thumbnail.seaweedfs_fid)
+            except Exception as e:
+                app_logger.error(f"Error deleting thumbnail from SeaweedFS: {e}")
+        elif thumbnail.storage_type == "s3" and thumbnail.s3_key:
+            try:
+                from app.services.s3 import s3_service
+                s3_service.delete_file(thumbnail.s3_key)
+            except Exception as e:
+                app_logger.error(f"Error deleting thumbnail from S3: {e}")
+        
+        # Xóa bản ghi thumbnail
+        db.delete(thumbnail)
+    
+    # Xóa các processing tasks liên quan
+    processing_tasks = db.query(ProcessingTask).filter(ProcessingTask.image_id == image_id).all()
+    for task in processing_tasks:
+        db.delete(task)
+
+    # Xóa file ảnh chính nếu lưu ở local
     if db_image.storage_type == StorageType.LOCAL and db_image.file_path:
         try:
             if os.path.exists(db_image.file_path):
                 os.remove(db_image.file_path)
         except Exception as e:
-            app_logger.error(f"Error deleting file: {e}")
+            app_logger.error(f"Error deleting image file: {e}")
+    
+    # Xóa từ remote storage nếu cần
+    if db_image.storage_type == "seaweedfs" and db_image.seaweedfs_fid:
+        try:
+            from app.services.seaweedfs import seaweedfs_service
+            seaweedfs_service.delete_file(db_image.seaweedfs_fid)
+        except Exception as e:
+            app_logger.error(f"Error deleting image from SeaweedFS: {e}")
+    elif db_image.storage_type == "s3" and db_image.s3_key:
+        try:
+            from app.services.s3 import s3_service
+            s3_service.delete_file(db_image.s3_key)
+        except Exception as e:
+            app_logger.error(f"Error deleting image from S3: {e}")
 
-    # Xóa bản ghi
+    # Xóa bản ghi ảnh chính
     db.delete(db_image)
     db.commit()
 
-    app_logger.info(f"Deleted image: {image_id}")
+    app_logger.info(f"Deleted image and all related data: {image_id}")
     return True

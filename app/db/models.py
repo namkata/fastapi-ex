@@ -113,8 +113,8 @@ class ProcessingTask(Base):
     task_type: Mapped[str] = mapped_column(String(50))
     status: Mapped[str] = mapped_column(String(20), default="pending")
     params: Mapped[str] = mapped_column(Text)
-    result: Mapped[str] = mapped_column(Text)
-    error: Mapped[str] = mapped_column(Text)
+    result: Mapped[Optional[str]] = mapped_column(Text, nullable=True) 
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
