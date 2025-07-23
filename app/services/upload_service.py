@@ -119,27 +119,26 @@ class UploadService:
                 fid = self.storage_manager.get_backend(backend_name).get_fid_for_key(key)
                 if fid:
                     db_image.seaweedfs_fid = fid
-                    db_image.storage_path = file_url
             db.commit()
             db.refresh(db_image)
             
-            # Auto create thumbnails and update status
-            try:
-                db_image.process_status = ProcessStatus.PROCESSING
-                db.commit()
-                
-                thumbnails = create_thumbnails(db, db_image.id)
-                if thumbnails:
-                    db_image.process_status = ProcessStatus.COMPLETED
-                else:
-                    db_image.process_status = ProcessStatus.FAILED
-                    db_image.process_error = "Failed to create thumbnails"
-                db.commit()
-            except Exception as e:
-                db_image.process_status = ProcessStatus.FAILED
-                db_image.process_error = str(e)
-                db.commit()
-                app_logger.error(f"Auto thumbnail creation error: {e}")
+            # # Auto create thumbnails and update status
+            # try:
+            #     db_image.process_status = ProcessStatus.PROCESSING
+            #     db.commit()
+            #
+            #     thumbnails = create_thumbnails(db, db_image.id)
+            #     if thumbnails:
+            #         db_image.process_status = ProcessStatus.COMPLETED
+            #     else:
+            #         db_image.process_status = ProcessStatus.FAILED
+            #         db_image.process_error = "Failed to create thumbnails"
+            #     db.commit()
+            # except Exception as e:
+            #     db_image.process_status = ProcessStatus.FAILED
+            #     db_image.process_error = str(e)
+            #     db.commit()
+            #     app_logger.error(f"Auto thumbnail creation error: {e}")
 
             app_logger.info(f"Successfully uploaded file {filename} to {storage_type.value}")
             return db_image

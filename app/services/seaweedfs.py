@@ -6,12 +6,12 @@ from typing import BinaryIO, Optional
 from fastapi import UploadFile
 from pyseaweed import SeaweedFS
 from sqlalchemy.orm import Session
-
+from urllib.parse import urlparse
 from app.core.config import settings
 from app.core.logging import app_logger
-from app.db.models import Image
-from app.schemas.image import StorageType
+from app.db.models import Image, SeaweedFSFileMapping
 from app.services.storage_manager import StorageBackend
+from app.db.session import SessionLocal
 
 
 class SeaweedFSService(StorageBackend):
@@ -19,31 +19,31 @@ class SeaweedFSService(StorageBackend):
         """Initialize SeaweedFS client"""
         try:
             # Parse master URL to extract host and port
-            master_url = settings.SEAWEEDFS_MASTER_URL
-            if "://" in master_url:
-                master_url = master_url.split("://")[-1]
+            master_url = settings.SEAWEEDFS_MASTER_URL.rstrip('/')
             
-            if ":" in master_url:
-                master_addr, master_port_str = master_url.rsplit(":", 1)
-                master_port = int(master_port_str)
-            else:
-                master_addr = master_url
-                master_port = 9333  # Default SeaweedFS master port
-            
+            parsed_url = urlparse(master_url)
+            scheme = parsed_url.scheme or "http"
+            host = parsed_url.hostname or "localhost"
+            port = parsed_url.port or 9333
+
             self.seaweed = SeaweedFS(
-                master_addr=master_addr,
-                master_port=master_port,
+                master_addr=host,
+                master_port=port,
             )
 
+            url = f"{scheme}://{host}:{port}/dir/status"
             try:
-                response = requests.get(f"http://{master_addr.replace('seaweedfs-master', 'localhost')}:{master_port}/dir/status")
-                if response.status_code == 200:
+                resp = requests.get(url, timeout=5)
+                if resp.status_code == 200:
                     self.available = True
-                    app_logger.info(f"SeaweedFS service initialized successfully (master: {master_addr}:{master_port})")
+                    app_logger.info(f"SeaweedFS service initialized successfully ({url})")
                 else:
-                    raise Exception(f"Unexpected status code: {response.status_code}")
-            except Exception as test_e:
-                app_logger.warning(f"SeaweedFS connection test failed, but service will be marked as available: {test_e}")
+                    raise Exception(f"Unexpected status code: {resp.status_code}. URL: {url}")
+            except Exception as ex:
+                app_logger.warning(
+                    f"[SeaweedFS] Connection test to master failed ({url}). "
+                    f"Marking service as available to avoid blocking upload flow. Error: {ex}"
+                )
                 self.available = True
                 
         except Exception as e:
@@ -73,16 +73,21 @@ class SeaweedFSService(StorageBackend):
     
     def _store_fid_mapping(self, key: str, fid: str) -> None:
         """Store FID mapping (in a real implementation, this would be in a database)"""
-        # For now, we'll store it in memory. In production, use a database.
-        if not hasattr(self, '_fid_mappings'):
-            self._fid_mappings = {}
-        self._fid_mappings[key] = fid
+        with SessionLocal() as db:
+            mapping = db.query(SeaweedFSFileMapping).filter(SeaweedFSFileMapping.key==key).first()
+            if mapping:
+                mapping.fid = fid
+            else:
+                mapping = SeaweedFSFileMapping(key=key, fid=fid)
+                db.add(mapping)
+            db.commit()
     
     def _get_fid_from_key(self, key: str) -> Optional[str]:
-         """Get FID from key mapping"""
-         if not hasattr(self, '_fid_mappings'):
-             return None
-         return self._fid_mappings.get(key)
+        with SessionLocal() as db:
+            mapping = db.query(SeaweedFSFileMapping).filter(SeaweedFSFileMapping.key==key).first()
+            if mapping:
+                return mapping.fid
+            return None
 
     def get_fid_for_key(self, key: str) -> Optional[str]:
         return self._get_fid_from_key(key)
@@ -115,7 +120,7 @@ class SeaweedFSService(StorageBackend):
             app_logger.info(f"[SeaweedFS] Uploaded: {fid}")
             return fid
         except Exception as e:
-            app_logger.error(f"[SeaweedFS] Upload error: {e}")
+            app_logger.error(f"[SeaweedFS] Upload error upload_file_direct: {e}")
             return None
 
     def upload_from_path(self, file_path: str, key: Optional[str] = None, **kwargs) -> bool:
@@ -182,7 +187,7 @@ class SeaweedFSService(StorageBackend):
         """Get file URL from key"""
         fid = self._get_fid_from_key(key)
         if not fid:
-            app_logger.error(f"[SeaweedFS] No FID found for key: {key}")
+            app_logger.error(f"[SeaweedFS] No FID found for key: {key}. File might not have been uploaded or mapping is missing.")
             return None
         return self.get_file_url_from_fid(fid)
     
@@ -271,18 +276,22 @@ class SeaweedFSService(StorageBackend):
         """Download file by key"""
         fid = self._get_fid_from_key(key)
         if not fid:
-            app_logger.error(f"[SeaweedFS] No FID found for key: {key}")
+            app_logger.error(f"[SeaweedFS][Download] No FID found for key: {key} and fid {fid}")
             return None
         return self.download_file_by_fid(fid)
     
     def download_file_by_fid(self, fid: str) -> Optional[bytes]:
         if not self.available:
-            app_logger.warning("[SeaweedFS] Service unavailable.")
+            app_logger.warning("[SeaweedFS][Download] Service unavailable.")
             return None
         try:
-            return self.seaweed.get_file(fid)
+            app_logger.debug(f"Downloading file with FID: {fid} from SeaweedFS")
+            data = self.seaweed.get_file(fid)
+            if data is None:
+                app_logger.error(f"No data returned for FID: {fid}")
+            return data
         except Exception as e:
-            app_logger.error(f"[SeaweedFS] Download error: {e}")
+            app_logger.error(f"[SeaweedFS][Download] Download error: {e}")
             return None
 
 
@@ -291,9 +300,9 @@ seaweedfs_service = SeaweedFSService()
 
 
 def update_image_record(db: Session, db_image: Image, fid: str, url: str) -> Image:
+    from app.schemas.image import StorageType
     db_image.storage_type = StorageType.SEAWEEDFS.value
     db_image.seaweedfs_fid = fid
-    db_image.storage_path = url
 
     db.add(db_image)
     db.commit()
@@ -314,9 +323,9 @@ def upload_image_to_seaweedfs(
         app_logger.error(f"[SeaweedFS] Upload failed: {image_id}")
         return None
 
-    url = seaweedfs_service.get_file_url(fid)
+    url = seaweedfs_service.get_file_url(db_image.storage_path)
     if not url:
-        app_logger.error(f"[SeaweedFS] Cannot get URL for FID: {fid}")
+        app_logger.error(f"[SeaweedFS] Cannot get URL for FID: {db_image.storage_path}")
         return None
 
     updated = update_image_record(db, db_image, fid, url)
@@ -340,9 +349,9 @@ def upload_local_image_to_seaweedfs(db: Session, image_id: int) -> Optional[Imag
         app_logger.error(f"[SeaweedFS] Upload failed from path: {image_id}")
         return None
 
-    url = seaweedfs_service.get_file_url(fid)
+    url = seaweedfs_service.get_file_url(db_image.storage_path)
     if not url:
-        app_logger.error(f"[SeaweedFS] Cannot get URL for FID: {fid}")
+        app_logger.error(f"[SeaweedFS] Cannot get URL for FID: {db_image.storage_path}")
         return None
 
     updated = update_image_record(db, db_image, fid, url)
@@ -351,6 +360,7 @@ def upload_local_image_to_seaweedfs(db: Session, image_id: int) -> Optional[Imag
 
 
 def delete_image_from_seaweedfs(db: Session, image_id: int) -> bool:
+    from app.schemas.image import StorageType
     db_image = db.query(Image).filter(Image.id == image_id).first()
     if not db_image:
         app_logger.error(f"[SeaweedFS] Image not found: {image_id}")

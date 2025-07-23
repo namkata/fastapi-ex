@@ -209,3 +209,6 @@ __marimo__/
 v/
 .ruff_cache
 .mypy_cache
+
+uploads/*
+logs/*

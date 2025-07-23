@@ -215,7 +215,7 @@ def process_image(db: Session, task_id: int) -> bool:
         # Nếu ảnh lưu trên SeaweedFS hoặc S3, tải về local
         if image.storage_type == "seaweedfs" and image.seaweedfs_fid:
             # Tải từ SeaweedFS
-            file_data = seaweedfs_service.download_file(image.seaweedfs_fid)
+            file_data = seaweedfs_service.download_file(image.storage_path)
             if not file_data:
                 app_logger.error(f"Failed to download image from SeaweedFS: {image.id}")
 
@@ -390,10 +390,19 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
     # Download from remote if necessary
     if not image.file_path or not os.path.exists(image.file_path):
         if image.storage_type == "seaweedfs" and image.seaweedfs_fid:
-            file_data = seaweedfs_service.download_file(image.seaweedfs_fid)
+            file_data = seaweedfs_service.download_file(image.storage_path)
             if not file_data:
-                app_logger.error(f"Failed to download image from SeaweedFS: {image.id}")
+                app_logger.error(f"Failed to download image from SeaweedFS for image_id {image.id} with FID: {image.seaweedfs_fid}")
                 return []
+            
+            if not seaweedfs_service.available:
+                app_logger.error("SeaweedFS service is unavailable")
+                return []
+            
+            if not seaweedfs_service.file_exists(image.storage_path):
+                app_logger.error(f"File does not exist on SeaweedFS for FID: {image.seaweedfs_fid}")
+                return []
+            
             local_path = os.path.join(settings.UPLOAD_DIR, image.filename)
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             with open(local_path, "wb") as f:

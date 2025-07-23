@@ -219,7 +219,7 @@ def upload_image_to_s3(db: Session, image_id: int, file: UploadFile) -> Optional
     db_image.storage_type = StorageType.S3
     db_image.s3_key = key
     db_image.s3_url = url or ""
-    db_image.storage_path = url or ""
+    db_image.storage_path = key or ""
 
     db.add(db_image)
     db.commit()
@@ -252,7 +252,7 @@ def upload_local_image_to_s3(db: Session, image_id: int) -> Optional[Image]:
     db_image.storage_type = StorageType.S3
     db_image.s3_key = key
     db_image.s3_url = url or ""
-    db_image.storage_path = url or ""
+    db_image.storage_path = key or ""
 
     db.add(db_image)
     db.commit()

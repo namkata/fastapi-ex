@@ -146,3 +146,9 @@ class UploadSession(Base):
     completed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+# Example model (you need to create this in your models.py)
+class SeaweedFSFileMapping(Base):
+    __tablename__ = "seaweedfs_file_mappings"
+    key = mapped_column(String, primary_key=True, index=True)
+    fid = mapped_column(String, nullable=False)

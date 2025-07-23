@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-
+from app.services.seaweedfs import seaweedfs_service
 from pydantic import BaseModel, validator
 
 
@@ -61,7 +61,6 @@ class Thumbnail(ThumbnailBase):
         elif storage_type == StorageType.SEAWEEDFS:
             fid = values.get('seaweedfs_fid')
             if fid:
-                from app.services.seaweedfs import seaweedfs_service
                 return seaweedfs_service.get_file_url_from_fid(fid)
         elif storage_type == StorageType.LOCAL:
             file_path = values.get('file_path')
@@ -110,7 +109,6 @@ class Image(ImageBase):
         elif storage_type == StorageType.SEAWEEDFS:
             fid = values.get('seaweedfs_fid')
             if fid:
-                from app.services.seaweedfs import seaweedfs_service
                 return seaweedfs_service.get_file_url_from_fid(fid)
         elif storage_type == StorageType.LOCAL:
             file_path = values.get('file_path')
