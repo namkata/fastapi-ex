@@ -379,8 +379,10 @@ def process_image(db: Session, task_id: int) -> bool:
 
 def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
     """
-    Tạo các thumbnail cho ảnh
+    Tạo các thumbnail cho ảnh và upload lên cùng storage type với ảnh gốc
     """
+    from app.services.upload_service import UploadService
+    
     # Lấy thông tin ảnh
     image = db.query(Image).filter(Image.id == image_id).first()
     if not image:
@@ -434,6 +436,7 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
     ]
 
     thumbnails = []
+    upload_service = UploadService()
 
     # Tạo các thumbnail
     for size_info in thumbnail_sizes:
@@ -450,7 +453,7 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
             width = int(float(width_raw))
             height = int(float(height_raw))
 
-            # Now call create_thumbnail with ints
+            # Create thumbnail locally first
             result_path = image_processor.create_thumbnail(
                 str(image.file_path), (width, height)
             )
@@ -459,6 +462,56 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
                 app_logger.error(f"Failed to create thumbnail: {size_info['size']}")
                 continue
 
+            # Determine storage type and upload thumbnail
+            storage_type = image.storage_type or "local"
+            storage_path = result_path
+            seaweedfs_fid = None
+            s3_key = None
+            s3_url = None
+            
+            # Upload to same storage as original image
+            if storage_type == "s3":
+                from app.schemas.image import StorageType
+                # Generate unique key for thumbnail
+                thumb_filename = os.path.basename(result_path)
+                thumb_key = f"thumbnails/{image.id}_{size_info['size']}_{thumb_filename}"
+                
+                # Upload to S3
+                upload_result = upload_service.upload_from_path(
+                    file_path=result_path,
+                    user_id=image.owner_id,
+                    storage_type=StorageType.S3,
+                    custom_key=thumb_key
+                )
+                
+                if upload_result["success"]:
+                    storage_path = upload_result["key"]
+                    s3_key = upload_result["key"]
+                    s3_url = upload_result["url"]
+                    app_logger.info(f"Uploaded thumbnail to S3: {thumb_key}")
+                else:
+                    app_logger.error(f"Failed to upload thumbnail to S3: {upload_result.get('error')}")
+                    storage_type = "local"  # Fallback to local
+                    
+            elif storage_type == "seaweedfs":
+                from app.schemas.image import StorageType
+                # Upload to SeaweedFS
+                upload_result = upload_service.upload_from_path(
+                    file_path=result_path,
+                    user_id=image.owner_id,
+                    storage_type=StorageType.SEAWEEDFS
+                )
+                
+                if upload_result["success"]:
+                    storage_path = upload_result["key"]
+                    # Get FID from SeaweedFS service
+                    backend = upload_service.storage_manager.get_backend("seaweedfs")
+                    seaweedfs_fid = backend.get_fid_for_key(upload_result["key"])
+                    app_logger.info(f"Uploaded thumbnail to SeaweedFS: {upload_result['key']}")
+                else:
+                    app_logger.error(f"Failed to upload thumbnail to SeaweedFS: {upload_result.get('error')}")
+                    storage_type = "local"  # Fallback to local
+
             # Tạo bản ghi Thumbnail
             thumbnail = Thumbnail(
                 image_id=image.id,
@@ -466,8 +519,11 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
                 width=size_info["width"],
                 height=size_info["height"],
                 file_path=result_path,
-                storage_type="local",
-                storage_path=result_path,
+                storage_type=storage_type,
+                storage_path=storage_path,
+                seaweedfs_fid=seaweedfs_fid,
+                s3_key=s3_key,
+                s3_url=s3_url,
             )
             db.add(thumbnail)
             db.commit()
@@ -476,7 +532,7 @@ def create_thumbnails(db: Session, image_id: int) -> List[Thumbnail]:
             thumbnails.append(thumbnail)
 
             app_logger.info(
-                f"Created thumbnail: {thumbnail.id}, size: {size_info['size']}"
+                f"Created thumbnail: {thumbnail.id}, size: {size_info['size']}, storage: {storage_type}"
             )
 
         except Exception as e:

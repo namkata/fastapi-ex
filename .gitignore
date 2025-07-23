@@ -212,3 +212,4 @@ v/
 
 uploads/*
 logs/*
+.vercel/project.json

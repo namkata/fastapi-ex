@@ -1,7 +1,7 @@
 """Add default to updated_at in users
 
 Revision ID: af6486c812f1
-Revises: 3e4b8f7c2ff0
+Revises: c3fc3fcb75f9
 Create Date: 2025-07-22 07:55:36.398519
 
 """
